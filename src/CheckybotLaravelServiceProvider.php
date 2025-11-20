@@ -2,11 +2,11 @@
 
 namespace MarinSolutions\CheckybotLaravel;
 
+use MarinSolutions\CheckybotLaravel\Commands\CheckybotCommand;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
-use MarinSolutions\CheckybotLaravel\Commands\CheckybotCommand;
 
-class CheckybotServiceProvider extends PackageServiceProvider
+class CheckybotLaravelServiceProvider extends PackageServiceProvider
 {
     public function configurePackage(Package $package): void
     {
@@ -16,10 +16,9 @@ class CheckybotServiceProvider extends PackageServiceProvider
          * More info: https://github.com/spatie/laravel-package-tools
          */
         $package
-            ->name('checkybot-laravel-temp')
+            ->name('checkybot-laravel')
             ->hasConfigFile()
             ->hasViews()
-            ->hasMigration('create_checkybot_laravel_temp_table')
             ->hasCommand(CheckybotCommand::class);
     }
 }

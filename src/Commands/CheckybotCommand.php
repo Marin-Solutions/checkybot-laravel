@@ -6,9 +6,9 @@ use Illuminate\Console\Command;
 
 class CheckybotCommand extends Command
 {
-    public $signature = 'checkybot-laravel-temp';
+    public $signature = 'checkybot:sync';
 
-    public $description = 'My command';
+    public $description = 'Sync monitoring checks with CheckyBot platform';
 
     public function handle(): int
     {
