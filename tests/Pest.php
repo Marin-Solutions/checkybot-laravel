@@ -1,5 +1,5 @@
 <?php
 
-use Marin Delija\CheckybotLaravelTemp\Tests\TestCase;
+use MarinSolutions\CheckybotLaravel\Tests\TestCase;
 
 uses(TestCase::class)->in(__DIR__);
