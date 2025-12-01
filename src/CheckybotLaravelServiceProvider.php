@@ -29,7 +29,7 @@ class CheckybotLaravelServiceProvider extends ServiceProvider
     protected function mergeConfig(): void
     {
         $this->mergeConfigFrom(
-            __DIR__ . '/../config/checkybot-laravel.php',
+            __DIR__.'/../config/checkybot-laravel.php',
             Constants::CONFIG_KEY
         );
     }
@@ -70,7 +70,7 @@ class CheckybotLaravelServiceProvider extends ServiceProvider
     protected function publishConfig(): void
     {
         $this->publishes([
-            __DIR__ . '/../config/checkybot-laravel.php' => config_path('checkybot-laravel.php'),
+            __DIR__.'/../config/checkybot-laravel.php' => config_path('checkybot-laravel.php'),
         ], Constants::CONFIG_PUBLISH_TAG);
     }
 

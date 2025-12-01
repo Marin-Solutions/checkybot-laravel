@@ -44,7 +44,7 @@ class CheckybotClient
         return [
             Constants::HEADER_ACCEPT => Constants::HEADER_ACCEPT_JSON,
             Constants::HEADER_X_API_KEY => $this->apiKey,
-            Constants::HEADER_AUTHORIZATION => Constants::HEADER_AUTHORIZATION_PREFIX . $this->apiKey,
+            Constants::HEADER_AUTHORIZATION => Constants::HEADER_AUTHORIZATION_PREFIX.$this->apiKey,
         ];
     }
 
@@ -80,6 +80,7 @@ class CheckybotClient
 
                 if ($attempt < $this->retryTimes) {
                     $this->waitBeforeRetry();
+
                     continue;
                 }
 
@@ -146,7 +147,7 @@ class CheckybotClient
      */
     protected function parseErrorMessage(GuzzleException $e): string
     {
-        if (!($e instanceof RequestException) || !$e->hasResponse()) {
+        if (! ($e instanceof RequestException) || ! $e->hasResponse()) {
             return $e->getMessage();
         }
 
@@ -157,12 +158,12 @@ class CheckybotClient
 
         $body = json_decode($response->getBody()->getContents(), true);
 
-        if (!is_array($body)) {
+        if (! is_array($body)) {
             return $e->getMessage();
         }
 
         if (isset($body['errors'])) {
-            return 'Validation failed: ' . json_encode($body['errors'], JSON_UNESCAPED_SLASHES);
+            return 'Validation failed: '.json_encode($body['errors'], JSON_UNESCAPED_SLASHES);
         }
 
         return $body['message'] ?? 'Unknown error occurred';

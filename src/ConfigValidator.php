@@ -23,7 +23,7 @@ class ConfigValidator
 
         $this->validateCredentials($config, $errors);
 
-        if (!empty($errors)) {
+        if (! empty($errors)) {
             return ['valid' => false, 'errors' => $errors];
         }
 
@@ -69,9 +69,9 @@ class ConfigValidator
         foreach ($checkTypes as $type) {
             $names = array_column($checks[$type] ?? [], 'name');
             $nameCounts = array_count_values($names);
-            $duplicates = array_filter($nameCounts, fn(int $count): bool => $count > 1);
+            $duplicates = array_filter($nameCounts, fn (int $count): bool => $count > 1);
 
-            if (!empty($duplicates)) {
+            if (! empty($duplicates)) {
                 $duplicateNames = array_keys($duplicates);
                 $errors[] = sprintf(
                     Constants::ERROR_DUPLICATE_CHECK_NAMES,

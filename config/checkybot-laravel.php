@@ -113,11 +113,11 @@ return [
         'api' => [
             [
                 'name' => 'health-check',
-                'url' => env('APP_URL') . '/api/health',
+                'url' => env('APP_URL').'/api/health',
                 'interval' => '5m',
                 'headers' => [
                     'Accept' => 'application/json',
-                    'Authorization' => 'Bearer ' . env('HEALTH_CHECK_TOKEN'),
+                    'Authorization' => 'Bearer '.env('HEALTH_CHECK_TOKEN'),
                 ],
                 'assertions' => [
                     [

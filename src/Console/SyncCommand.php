@@ -29,7 +29,7 @@ class SyncCommand extends Command
 
         $config = config(Constants::CONFIG_KEY);
 
-        if (!$this->validateConfiguration($validator, $config)) {
+        if (! $this->validateConfiguration($validator, $config)) {
             return self::FAILURE;
         }
 
@@ -56,10 +56,10 @@ class SyncCommand extends Command
     {
         $validation = $validator->validate($config);
 
-        if (!$validation['valid']) {
+        if (! $validation['valid']) {
             $this->error('Configuration validation failed:');
             foreach ($validation['errors'] as $error) {
-                $this->error('  - ' . $error);
+                $this->error('  - '.$error);
             }
 
             return false;
@@ -94,7 +94,7 @@ class SyncCommand extends Command
 
             return self::SUCCESS;
         } catch (CheckybotSyncException $e) {
-            $this->error('✗ Sync failed: ' . $e->getMessage());
+            $this->error('✗ Sync failed: '.$e->getMessage());
 
             return self::FAILURE;
         }
@@ -118,8 +118,8 @@ class SyncCommand extends Command
         ];
 
         foreach ($checkTypes as $type => $label) {
-            if (!empty($payload[$type])) {
-                $this->info($label . ':');
+            if (! empty($payload[$type])) {
+                $this->info($label.':');
                 foreach ($payload[$type] as $check) {
                     $this->displayCheck($check);
                 }
