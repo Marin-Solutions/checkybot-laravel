@@ -60,7 +60,7 @@ class CheckybotClient
                 );
             }
 
-            $body = json_decode($response->getBody()->getContents(), true);
+            $body = json_decode($response->getBody()->getContents(), true) ?? [];
 
             Log::info('Checkybot sync successful', [
                 'project_id' => $this->projectId,
