@@ -141,15 +141,50 @@ Checkybot::uptime('dashboard')
 
 ### Interval Helpers
 
+All Laravel scheduler interval helpers are available:
+
+#### Seconds
+| Method | Interval |
+|--------|----------|
+| `->everySecond()` | 1 second |
+| `->everyTwoSeconds()` | 2 seconds |
+| `->everyFiveSeconds()` | 5 seconds |
+| `->everyTenSeconds()` | 10 seconds |
+| `->everyFifteenSeconds()` | 15 seconds |
+| `->everyTwentySeconds()` | 20 seconds |
+| `->everyThirtySeconds()` | 30 seconds |
+
+#### Minutes
 | Method | Interval |
 |--------|----------|
 | `->everyMinute()` | 1 minute |
+| `->everyTwoMinutes()` | 2 minutes |
+| `->everyThreeMinutes()` | 3 minutes |
+| `->everyFourMinutes()` | 4 minutes |
 | `->everyFiveMinutes()` | 5 minutes |
 | `->everyTenMinutes()` | 10 minutes |
 | `->everyFifteenMinutes()` | 15 minutes |
 | `->everyThirtyMinutes()` | 30 minutes |
+
+#### Hours
+| Method | Interval |
+|--------|----------|
 | `->hourly()` | 1 hour |
+| `->everyTwoHours()` | 2 hours |
+| `->everyThreeHours()` | 3 hours |
+| `->everyFourHours()` | 4 hours |
+| `->everySixHours()` | 6 hours |
+| `->twiceDaily()` | 12 hours |
+
+#### Days
+| Method | Interval |
+|--------|----------|
 | `->daily()` | 1 day |
+| `->weekly()` | 7 days |
+
+#### Custom
+| Method | Interval |
+|--------|----------|
 | `->every('5m')` | Custom interval |
 
 ## SSL Certificate Checks

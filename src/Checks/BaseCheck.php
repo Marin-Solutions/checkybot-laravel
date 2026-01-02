@@ -91,6 +91,76 @@ abstract class BaseCheck
     }
 
     /**
+     * Run this check every second.
+     *
+     * @return $this
+     */
+    public function everySecond(): static
+    {
+        return $this->every('1s');
+    }
+
+    /**
+     * Run this check every two seconds.
+     *
+     * @return $this
+     */
+    public function everyTwoSeconds(): static
+    {
+        return $this->every('2s');
+    }
+
+    /**
+     * Run this check every five seconds.
+     *
+     * @return $this
+     */
+    public function everyFiveSeconds(): static
+    {
+        return $this->every('5s');
+    }
+
+    /**
+     * Run this check every ten seconds.
+     *
+     * @return $this
+     */
+    public function everyTenSeconds(): static
+    {
+        return $this->every('10s');
+    }
+
+    /**
+     * Run this check every fifteen seconds.
+     *
+     * @return $this
+     */
+    public function everyFifteenSeconds(): static
+    {
+        return $this->every('15s');
+    }
+
+    /**
+     * Run this check every twenty seconds.
+     *
+     * @return $this
+     */
+    public function everyTwentySeconds(): static
+    {
+        return $this->every('20s');
+    }
+
+    /**
+     * Run this check every thirty seconds.
+     *
+     * @return $this
+     */
+    public function everyThirtySeconds(): static
+    {
+        return $this->every('30s');
+    }
+
+    /**
      * Run this check every minute.
      *
      * @return $this
@@ -101,7 +171,37 @@ abstract class BaseCheck
     }
 
     /**
-     * Run this check every 5 minutes.
+     * Run this check every two minutes.
+     *
+     * @return $this
+     */
+    public function everyTwoMinutes(): static
+    {
+        return $this->every('2m');
+    }
+
+    /**
+     * Run this check every three minutes.
+     *
+     * @return $this
+     */
+    public function everyThreeMinutes(): static
+    {
+        return $this->every('3m');
+    }
+
+    /**
+     * Run this check every four minutes.
+     *
+     * @return $this
+     */
+    public function everyFourMinutes(): static
+    {
+        return $this->every('4m');
+    }
+
+    /**
+     * Run this check every five minutes.
      *
      * @return $this
      */
@@ -111,7 +211,7 @@ abstract class BaseCheck
     }
 
     /**
-     * Run this check every 10 minutes.
+     * Run this check every ten minutes.
      *
      * @return $this
      */
@@ -121,7 +221,7 @@ abstract class BaseCheck
     }
 
     /**
-     * Run this check every 15 minutes.
+     * Run this check every fifteen minutes.
      *
      * @return $this
      */
@@ -131,7 +231,7 @@ abstract class BaseCheck
     }
 
     /**
-     * Run this check every 30 minutes.
+     * Run this check every thirty minutes.
      *
      * @return $this
      */
@@ -151,6 +251,56 @@ abstract class BaseCheck
     }
 
     /**
+     * Run this check every two hours.
+     *
+     * @return $this
+     */
+    public function everyTwoHours(): static
+    {
+        return $this->every('2h');
+    }
+
+    /**
+     * Run this check every three hours.
+     *
+     * @return $this
+     */
+    public function everyThreeHours(): static
+    {
+        return $this->every('3h');
+    }
+
+    /**
+     * Run this check every four hours.
+     *
+     * @return $this
+     */
+    public function everyFourHours(): static
+    {
+        return $this->every('4h');
+    }
+
+    /**
+     * Run this check every six hours.
+     *
+     * @return $this
+     */
+    public function everySixHours(): static
+    {
+        return $this->every('6h');
+    }
+
+    /**
+     * Run this check every twelve hours (twice daily).
+     *
+     * @return $this
+     */
+    public function twiceDaily(): static
+    {
+        return $this->every('12h');
+    }
+
+    /**
      * Run this check every day.
      *
      * @return $this
@@ -158,6 +308,16 @@ abstract class BaseCheck
     public function daily(): static
     {
         return $this->every('1d');
+    }
+
+    /**
+     * Run this check every week.
+     *
+     * @return $this
+     */
+    public function weekly(): static
+    {
+        return $this->every('7d');
     }
 
     /**
