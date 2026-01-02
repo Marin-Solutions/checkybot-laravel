@@ -1,6 +1,6 @@
 <?php
 
-namespace Marin Delija\CheckybotLaravelTemp\Database\Factories;
+namespace MarinSolutions\CheckybotLaravel\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 
