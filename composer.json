@@ -66,10 +66,7 @@
         "laravel": {
             "providers": [
                 "MarinSolutions\\CheckybotLaravel\\CheckybotLaravelServiceProvider"
-            ],
-            "aliases": {
-                "Checkybot": "MarinSolutions\\CheckybotLaravel\\Facades\\Checkybot"
-            }
+            ]
         }
     },
     "minimum-stability": "dev",
