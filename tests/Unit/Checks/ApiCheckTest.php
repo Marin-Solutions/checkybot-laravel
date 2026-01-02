@@ -103,8 +103,8 @@ it('adds equality assertion with toEqual', function () {
     $array = $check->toArray();
 
     expect($array['assertions'][0]['data_path'])->toBe('status')
-        ->and($array['assertions'][0]['assertion_type'])->toBe('comparison')
-        ->and($array['assertions'][0]['comparison_operator'])->toBe('==')
+        ->and($array['assertions'][0]['assertion_type'])->toBe('value_compare')
+        ->and($array['assertions'][0]['comparison_operator'])->toBe('=')
         ->and($array['assertions'][0]['expected_value'])->toBe('healthy');
 });
 
@@ -114,7 +114,7 @@ it('adds equality assertion with toBe alias', function () {
 
     $array = $check->toArray();
 
-    expect($array['assertions'][0]['comparison_operator'])->toBe('==')
+    expect($array['assertions'][0]['comparison_operator'])->toBe('=')
         ->and($array['assertions'][0]['expected_value'])->toBe('healthy');
 });
 
@@ -124,7 +124,7 @@ it('adds equality assertion with equals alias', function () {
 
     $array = $check->toArray();
 
-    expect($array['assertions'][0]['comparison_operator'])->toBe('==');
+    expect($array['assertions'][0]['comparison_operator'])->toBe('=');
 });
 
 it('adds not equal assertion with notToEqual', function () {
@@ -192,7 +192,7 @@ it('adds true assertion with toBeTrue', function () {
 
     $array = $check->toArray();
 
-    expect($array['assertions'][0]['comparison_operator'])->toBe('==')
+    expect($array['assertions'][0]['comparison_operator'])->toBe('=')
         ->and($array['assertions'][0]['expected_value'])->toBe('true');
 });
 
@@ -202,7 +202,7 @@ it('adds false assertion with toBeFalse', function () {
 
     $array = $check->toArray();
 
-    expect($array['assertions'][0]['comparison_operator'])->toBe('==')
+    expect($array['assertions'][0]['comparison_operator'])->toBe('=')
         ->and($array['assertions'][0]['expected_value'])->toBe('false');
 });
 
@@ -212,7 +212,7 @@ it('adds type assertion with toBeType', function () {
 
     $array = $check->toArray();
 
-    expect($array['assertions'][0]['assertion_type'])->toBe('type')
+    expect($array['assertions'][0]['assertion_type'])->toBe('type_check')
         ->and($array['assertions'][0]['expected_type'])->toBe('integer');
 });
 
@@ -285,7 +285,7 @@ it('adds regex assertion with toMatch', function () {
 
     $array = $check->toArray();
 
-    expect($array['assertions'][0]['assertion_type'])->toBe('regex')
+    expect($array['assertions'][0]['assertion_type'])->toBe('regex_match')
         ->and($array['assertions'][0]['regex_pattern'])->toBe('/^v\d+\.\d+\.\d+$/');
 });
 
@@ -295,7 +295,7 @@ it('adds regex assertion with toMatchRegex alias', function () {
 
     $array = $check->toArray();
 
-    expect($array['assertions'][0]['assertion_type'])->toBe('regex');
+    expect($array['assertions'][0]['assertion_type'])->toBe('regex_match');
 });
 
 it('chains multiple assertions', function () {

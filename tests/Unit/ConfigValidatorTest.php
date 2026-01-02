@@ -174,7 +174,7 @@ it('transforms payload with api checks including assertions', function () {
                     'headers' => ['Accept' => 'application/json'],
                     'assertions' => [
                         ['data_path' => 'status', 'assertion_type' => 'exists'],
-                        ['data_path' => 'status', 'assertion_type' => 'comparison', 'comparison_operator' => '==', 'expected_value' => 'healthy'],
+                        ['data_path' => 'status', 'assertion_type' => 'value_compare', 'comparison_operator' => '=', 'expected_value' => 'healthy'],
                     ],
                 ],
             ],

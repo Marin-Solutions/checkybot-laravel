@@ -80,8 +80,8 @@ class PendingAssertion
     {
         return $this->check->addAssertion([
             'data_path' => $this->path,
-            'assertion_type' => 'comparison',
-            'comparison_operator' => '==',
+            'assertion_type' => 'value_compare',
+            'comparison_operator' => '=',
             'expected_value' => (string) $expected,
         ]);
     }
@@ -120,7 +120,7 @@ class PendingAssertion
     {
         return $this->check->addAssertion([
             'data_path' => $this->path,
-            'assertion_type' => 'comparison',
+            'assertion_type' => 'value_compare',
             'comparison_operator' => '!=',
             'expected_value' => (string) $expected,
         ]);
@@ -150,7 +150,7 @@ class PendingAssertion
     {
         return $this->check->addAssertion([
             'data_path' => $this->path,
-            'assertion_type' => 'comparison',
+            'assertion_type' => 'value_compare',
             'comparison_operator' => '>',
             'expected_value' => (string) $expected,
         ]);
@@ -170,7 +170,7 @@ class PendingAssertion
     {
         return $this->check->addAssertion([
             'data_path' => $this->path,
-            'assertion_type' => 'comparison',
+            'assertion_type' => 'value_compare',
             'comparison_operator' => '>=',
             'expected_value' => (string) $expected,
         ]);
@@ -190,7 +190,7 @@ class PendingAssertion
     {
         return $this->check->addAssertion([
             'data_path' => $this->path,
-            'assertion_type' => 'comparison',
+            'assertion_type' => 'value_compare',
             'comparison_operator' => '<',
             'expected_value' => (string) $expected,
         ]);
@@ -210,7 +210,7 @@ class PendingAssertion
     {
         return $this->check->addAssertion([
             'data_path' => $this->path,
-            'assertion_type' => 'comparison',
+            'assertion_type' => 'value_compare',
             'comparison_operator' => '<=',
             'expected_value' => (string) $expected,
         ]);
@@ -258,7 +258,7 @@ class PendingAssertion
     {
         return $this->check->addAssertion([
             'data_path' => $this->path,
-            'assertion_type' => 'type',
+            'assertion_type' => 'type_check',
             'expected_type' => $type,
         ]);
     }
@@ -333,7 +333,7 @@ class PendingAssertion
     {
         return $this->check->addAssertion([
             'data_path' => $this->path,
-            'assertion_type' => 'regex',
+            'assertion_type' => 'regex_match',
             'regex_pattern' => $pattern,
         ]);
     }
