@@ -4,7 +4,7 @@
 [![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/Marin-Solutions/checkybot-laravel/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/Marin-Solutions/checkybot-laravel/actions?query=workflow%3Arun-tests+branch%3Amain)
 [![Total Downloads](https://img.shields.io/packagist/dt/marin-solutions/checkybot-laravel.svg?style=flat-square)](https://packagist.org/packages/marin-solutions/checkybot-laravel)
 
-A Laravel package for defining and syncing monitoring checks to your Checkybot instance. Define uptime, SSL certificate, and API endpoint monitors in your Laravel config and sync them with a single command.
+A Laravel package for defining and syncing monitoring checks to your Checkybot instance. Define uptime, SSL certificate, and API endpoint monitors using a beautiful fluent API inspired by Pest, and sync them with a single command.
 
 ## Quick Start
 
@@ -14,17 +14,22 @@ Get up and running in under 2 minutes:
 # 1. Install the package
 composer require marin-solutions/checkybot-laravel
 
-# 2. Publish the config
+# 2. Publish the routes file
+php artisan vendor:publish --tag="checkybot-routes"
+
+# 3. Publish the config (for API credentials)
 php artisan vendor:publish --tag="checkybot-laravel-config"
 
-# 3. Add credentials to .env
+# 4. Add credentials to .env
 echo "CHECKYBOT_API_KEY=your-api-key" >> .env
 echo "CHECKYBOT_PROJECT_ID=1" >> .env
 
-# 4. Preview your checks
+# 5. Define your checks in routes/checkybot.php (see examples below)
+
+# 6. Preview your checks
 php artisan checkybot:sync --dry-run
 
-# 5. Sync to Checkybot
+# 7. Sync to Checkybot
 php artisan checkybot:sync
 ```
 
@@ -36,15 +41,21 @@ php artisan checkybot:sync
 composer require marin-solutions/checkybot-laravel
 ```
 
-### Step 2: Publish Configuration
+### Step 2: Publish Routes File
+
+```bash
+php artisan vendor:publish --tag="checkybot-routes"
+```
+
+This creates `routes/checkybot.php` where you'll define your monitoring checks using the fluent API.
+
+### Step 3: Publish Configuration
 
 ```bash
 php artisan vendor:publish --tag="checkybot-laravel-config"
 ```
 
-This creates `config/checkybot-laravel.php` where you'll define your monitoring checks.
-
-### Step 3: Set Environment Variables
+### Step 4: Set Environment Variables
 
 Add to your `.env` file:
 
@@ -60,307 +71,205 @@ CHECKYBOT_URL=https://checkybot.com
 | `CHECKYBOT_PROJECT_ID` | The project ID to sync checks to |
 | `CHECKYBOT_URL` | Checkybot instance URL (default: `https://checkybot.com`) |
 
-### Step 4: Verify Installation
+### Step 5: Verify Installation
 
 ```bash
 php artisan checkybot:sync --dry-run
 ```
 
-You should see output like:
-```
-Checkybot Sync Starting...
-DRY RUN - No changes will be made
-Found 3 checks to sync
-...
-```
+## Defining Checks (Fluent API)
 
-## Usage Examples
-
-### Basic Usage
-
-```bash
-# Sync all checks to Checkybot
-php artisan checkybot:sync
-
-# Preview changes without syncing
-php artisan checkybot:sync --dry-run
-```
-
-### Example Configuration
-
-Here's a complete `config/checkybot-laravel.php` example:
+Define your checks in `routes/checkybot.php` using the expressive fluent API:
 
 ```php
 <?php
 
-return [
-    'api_key' => env('CHECKYBOT_API_KEY'),
-    'project_id' => env('CHECKYBOT_PROJECT_ID'),
-    'base_url' => env('CHECKYBOT_URL', 'https://checkybot.com'),
+use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
 
-    'checks' => [
-        'uptime' => [
-            // Monitor your homepage
-            [
-                'name' => 'homepage',
-                'url' => env('APP_URL'),
-                'interval' => '5m',
-            ],
-            // Monitor your API
-            [
-                'name' => 'api-server',
-                'url' => env('APP_URL') . '/api',
-                'interval' => '1m',
-            ],
-        ],
+// Uptime Checks
+Checkybot::uptime('homepage')
+    ->url(config('app.url'))
+    ->everyFiveMinutes();
 
-        'ssl' => [
-            // Check SSL certificate expiration
-            [
-                'name' => 'main-ssl',
-                'url' => env('APP_URL'),
-                'interval' => '1d',
-            ],
-        ],
+Checkybot::uptime('api-server')
+    ->url(config('app.url') . '/api')
+    ->everyMinute()
+    ->maxRedirects(5);
 
-        'api' => [
-            // Monitor health endpoint with assertions
-            [
-                'name' => 'health-check',
-                'url' => env('APP_URL') . '/api/health',
-                'interval' => '5m',
-                'assertions' => [
-                    [
-                        'data_path' => 'status',
-                        'assertion_type' => 'comparison',
-                        'comparison_operator' => '==',
-                        'expected_value' => 'healthy',
-                    ],
-                ],
-            ],
-        ],
-    ],
-];
+// SSL Certificate Checks
+Checkybot::ssl('main-certificate')
+    ->url(config('app.url'))
+    ->daily();
+
+// API Checks with Assertions (Pest-style!)
+Checkybot::api('health-check')
+    ->url(config('app.url') . '/api/health')
+    ->everyFiveMinutes()
+    ->withToken(config('services.monitoring.token'))
+    ->expect('status')->toEqual('healthy')
+    ->expect('database.connected')->toBeTrue()
+    ->expect('queue.size')->toBeLessThan(1000);
 ```
 
-## Defining Checks
-
-### Uptime Checks
+## Uptime Checks
 
 Monitor website availability and response times:
 
 ```php
-'uptime' => [
-    // Simple check - just URL and interval
-    [
-        'name' => 'homepage',
-        'url' => 'https://example.com',
-        'interval' => '5m',
-    ],
+use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
 
-    // With max redirects
-    [
-        'name' => 'blog',
-        'url' => 'https://blog.example.com',
-        'interval' => '10m',
-        'max_redirects' => 5,
-    ],
+// Simple uptime check
+Checkybot::uptime('homepage')
+    ->url('https://example.com')
+    ->everyFiveMinutes();
 
-    // Monitor multiple pages
-    [
-        'name' => 'pricing-page',
-        'url' => 'https://example.com/pricing',
-        'interval' => '15m',
-    ],
-    [
-        'name' => 'contact-page',
-        'url' => 'https://example.com/contact',
-        'interval' => '15m',
-    ],
-],
+// With max redirects
+Checkybot::uptime('blog')
+    ->url('https://blog.example.com')
+    ->every('10m')
+    ->maxRedirects(5);
+
+// Using interval helpers
+Checkybot::uptime('critical-api')
+    ->url('https://api.example.com')
+    ->everyMinute();
+
+Checkybot::uptime('dashboard')
+    ->url('https://app.example.com/dashboard')
+    ->everyFifteenMinutes();
 ```
 
-### SSL Certificate Checks
+### Interval Helpers
+
+| Method | Interval |
+|--------|----------|
+| `->everyMinute()` | 1 minute |
+| `->everyFiveMinutes()` | 5 minutes |
+| `->everyTenMinutes()` | 10 minutes |
+| `->everyFifteenMinutes()` | 15 minutes |
+| `->everyThirtyMinutes()` | 30 minutes |
+| `->hourly()` | 1 hour |
+| `->daily()` | 1 day |
+| `->every('5m')` | Custom interval |
+
+## SSL Certificate Checks
 
 Monitor SSL certificate expiration dates:
 
 ```php
-'ssl' => [
-    // Main domain
-    [
-        'name' => 'main-ssl',
-        'url' => 'https://example.com',
-        'interval' => '1d',
-    ],
+use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
 
-    // Subdomain
-    [
-        'name' => 'api-ssl',
-        'url' => 'https://api.example.com',
-        'interval' => '1d',
-    ],
+Checkybot::ssl('main-ssl')
+    ->url('https://example.com')
+    ->daily();
 
-    // Third-party service
-    [
-        'name' => 'cdn-ssl',
-        'url' => 'https://cdn.example.com',
-        'interval' => '1d',
-    ],
-],
+Checkybot::ssl('api-ssl')
+    ->url('https://api.example.com')
+    ->daily();
+
+Checkybot::ssl('cdn-ssl')
+    ->url('https://cdn.example.com')
+    ->every('12h');
 ```
 
-### API Endpoint Checks
+## API Endpoint Checks
 
-Monitor API endpoints with optional response validation:
+Monitor API endpoints with optional response validation using Pest-style assertions:
 
 ```php
-'api' => [
-    // Simple health check
-    [
-        'name' => 'health-check',
-        'url' => env('APP_URL') . '/api/health',
-        'interval' => '5m',
-    ],
+use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
 
-    // With custom headers
-    [
-        'name' => 'authenticated-endpoint',
-        'url' => env('APP_URL') . '/api/status',
-        'interval' => '5m',
-        'headers' => [
-            'Accept' => 'application/json',
-            'Authorization' => 'Bearer ' . env('MONITORING_TOKEN'),
-        ],
-    ],
+// Simple API check
+Checkybot::api('health')
+    ->url('https://example.com/api/health')
+    ->everyFiveMinutes();
 
-    // With response assertions
-    [
-        'name' => 'database-health',
-        'url' => env('APP_URL') . '/api/health/database',
-        'interval' => '5m',
-        'assertions' => [
-            // Check that status exists
-            [
-                'data_path' => 'status',
-                'assertion_type' => 'exists',
-            ],
-            // Check that status is "connected"
-            [
-                'data_path' => 'status',
-                'assertion_type' => 'comparison',
-                'comparison_operator' => '==',
-                'expected_value' => 'connected',
-            ],
-        ],
-    ],
+// With authentication
+Checkybot::api('authenticated-endpoint')
+    ->url('https://example.com/api/status')
+    ->everyFiveMinutes()
+    ->withToken(config('services.monitoring.token'));
 
-    // Complex assertions example
-    [
-        'name' => 'queue-health',
-        'url' => env('APP_URL') . '/api/health/queue',
-        'interval' => '10m',
-        'assertions' => [
-            // Check queue size is under threshold
-            [
-                'data_path' => 'queue_size',
-                'assertion_type' => 'comparison',
-                'comparison_operator' => '<',
-                'expected_value' => '1000',
-            ],
-            // Check workers are running
-            [
-                'data_path' => 'workers',
-                'assertion_type' => 'comparison',
-                'comparison_operator' => '>=',
-                'expected_value' => '1',
-            ],
-        ],
-    ],
-],
+// With custom headers
+Checkybot::api('custom-headers')
+    ->url('https://example.com/api/data')
+    ->everyFiveMinutes()
+    ->headers([
+        'Accept' => 'application/json',
+        'X-Custom-Header' => 'value',
+    ]);
+
+// Or add headers one at a time
+Checkybot::api('endpoint')
+    ->url('https://example.com/api')
+    ->withHeader('Authorization', 'Bearer token')
+    ->withHeader('Accept', 'application/json')
+    ->everyFiveMinutes();
 ```
 
-## Interval Format
+### Response Assertions (Pest-style)
 
-| Format | Description |
-|--------|-------------|
-| `1m` | Every minute |
-| `5m` | Every 5 minutes |
-| `10m` | Every 10 minutes |
-| `15m` | Every 15 minutes |
-| `30m` | Every 30 minutes |
-| `1h` | Every hour |
-| `2h` | Every 2 hours |
-| `6h` | Every 6 hours |
-| `12h` | Every 12 hours |
-| `1d` | Once per day |
-
-## Assertion Types
-
-For API checks, define assertions to validate responses:
-
-### Exists
-
-Check if a JSON path exists in the response:
+Chain assertions to validate JSON responses:
 
 ```php
-[
-    'data_path' => 'status',
-    'assertion_type' => 'exists',
-]
+Checkybot::api('health-check')
+    ->url('https://example.com/api/health')
+    ->everyFiveMinutes()
+    ->expect('status')->toExist()
+    ->expect('status')->toEqual('healthy')
+    ->expect('database.connected')->toBeTrue()
+    ->expect('cache.connected')->toBeTrue()
+    ->expect('queue.size')->toBeLessThan(1000)
+    ->expect('workers')->toBeGreaterThanOrEqual(1);
 ```
 
-### Comparison
+### Available Assertions
 
-Compare values using operators (`==`, `!=`, `>`, `>=`, `<`, `<=`):
-
+#### Existence
 ```php
-// Equal to
-[
-    'data_path' => 'status',
-    'assertion_type' => 'comparison',
-    'comparison_operator' => '==',
-    'expected_value' => 'healthy',
-]
-
-// Greater than
-[
-    'data_path' => 'uptime_percentage',
-    'assertion_type' => 'comparison',
-    'comparison_operator' => '>=',
-    'expected_value' => '99.9',
-]
-
-// Less than (queue size under threshold)
-[
-    'data_path' => 'pending_jobs',
-    'assertion_type' => 'comparison',
-    'comparison_operator' => '<',
-    'expected_value' => '100',
-]
+->expect('path')->toExist()
+->expect('path')->exists()       // alias
 ```
 
-### Type
-
-Check if value matches expected type (`string`, `integer`, `boolean`, `array`, `object`):
-
+#### Equality
 ```php
-[
-    'data_path' => 'user_count',
-    'assertion_type' => 'type',
-    'expected_type' => 'integer',
-]
+->expect('status')->toEqual('healthy')
+->expect('status')->toBe('healthy')      // alias
+->expect('status')->equals('healthy')    // alias
+->expect('status')->notToEqual('error')
+->expect('status')->notToBe('error')     // alias
 ```
 
-### Regex
-
-Match value against a regex pattern:
-
+#### Comparisons
 ```php
-[
-    'data_path' => 'version',
-    'assertion_type' => 'regex',
-    'regex_pattern' => '/^v\d+\.\d+\.\d+$/',
-]
+->expect('count')->toBeGreaterThan(10)
+->expect('count')->toBeGreaterThanOrEqual(10)
+->expect('size')->toBeLessThan(1000)
+->expect('size')->toBeLessThanOrEqual(1000)
+```
+
+#### Boolean
+```php
+->expect('active')->toBeTrue()
+->expect('maintenance')->toBeFalse()
+```
+
+#### Type Checking
+```php
+->expect('id')->toBeType('integer')
+->expect('id')->toBeInteger()     // alias
+->expect('id')->toBeInt()         // alias
+->expect('name')->toBeString()
+->expect('active')->toBeBoolean()
+->expect('active')->toBeBool()    // alias
+->expect('items')->toBeArray()
+->expect('data')->toBeObject()
+```
+
+#### Regex Matching
+```php
+->expect('version')->toMatch('/^v\d+\.\d+\.\d+$/')
+->expect('email')->toMatchRegex('/^[a-z]+@example\.com$/')  // alias
 ```
 
 ## Real-World Examples
@@ -368,99 +277,102 @@ Match value against a regex pattern:
 ### E-commerce Application
 
 ```php
-'checks' => [
-    'uptime' => [
-        ['name' => 'storefront', 'url' => env('APP_URL'), 'interval' => '1m'],
-        ['name' => 'checkout', 'url' => env('APP_URL') . '/checkout', 'interval' => '1m'],
-        ['name' => 'cart', 'url' => env('APP_URL') . '/cart', 'interval' => '5m'],
-    ],
-    'ssl' => [
-        ['name' => 'store-ssl', 'url' => env('APP_URL'), 'interval' => '1d'],
-    ],
-    'api' => [
-        [
-            'name' => 'payment-gateway',
-            'url' => env('APP_URL') . '/api/health/payments',
-            'interval' => '5m',
-            'assertions' => [
-                ['data_path' => 'stripe_connected', 'assertion_type' => 'comparison', 'comparison_operator' => '==', 'expected_value' => 'true'],
-            ],
-        ],
-        [
-            'name' => 'inventory-service',
-            'url' => env('APP_URL') . '/api/health/inventory',
-            'interval' => '5m',
-        ],
-    ],
-],
+use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
+
+// Critical pages - check every minute
+Checkybot::uptime('storefront')
+    ->url(config('app.url'))
+    ->everyMinute();
+
+Checkybot::uptime('checkout')
+    ->url(config('app.url') . '/checkout')
+    ->everyMinute();
+
+Checkybot::uptime('cart')
+    ->url(config('app.url') . '/cart')
+    ->everyFiveMinutes();
+
+// SSL
+Checkybot::ssl('store-ssl')
+    ->url(config('app.url'))
+    ->daily();
+
+// Payment gateway health
+Checkybot::api('payment-gateway')
+    ->url(config('app.url') . '/api/health/payments')
+    ->everyFiveMinutes()
+    ->expect('stripe_connected')->toBeTrue()
+    ->expect('paypal_connected')->toBeTrue();
+
+// Inventory service
+Checkybot::api('inventory')
+    ->url(config('app.url') . '/api/health/inventory')
+    ->everyFiveMinutes()
+    ->expect('status')->toEqual('operational');
 ```
 
 ### SaaS Application
 
 ```php
-'checks' => [
-    'uptime' => [
-        ['name' => 'app', 'url' => env('APP_URL'), 'interval' => '1m'],
-        ['name' => 'api', 'url' => env('APP_URL') . '/api', 'interval' => '1m'],
-        ['name' => 'dashboard', 'url' => env('APP_URL') . '/dashboard', 'interval' => '5m'],
-    ],
-    'ssl' => [
-        ['name' => 'app-ssl', 'url' => env('APP_URL'), 'interval' => '1d'],
-        ['name' => 'api-ssl', 'url' => env('API_URL', env('APP_URL')), 'interval' => '1d'],
-    ],
-    'api' => [
-        [
-            'name' => 'database',
-            'url' => env('APP_URL') . '/api/health/database',
-            'interval' => '5m',
-            'assertions' => [
-                ['data_path' => 'status', 'assertion_type' => 'comparison', 'comparison_operator' => '==', 'expected_value' => 'connected'],
-            ],
-        ],
-        [
-            'name' => 'redis',
-            'url' => env('APP_URL') . '/api/health/redis',
-            'interval' => '5m',
-            'assertions' => [
-                ['data_path' => 'status', 'assertion_type' => 'comparison', 'comparison_operator' => '==', 'expected_value' => 'connected'],
-            ],
-        ],
-        [
-            'name' => 'queue',
-            'url' => env('APP_URL') . '/api/health/queue',
-            'interval' => '10m',
-            'assertions' => [
-                ['data_path' => 'workers', 'assertion_type' => 'comparison', 'comparison_operator' => '>=', 'expected_value' => '1'],
-                ['data_path' => 'failed_jobs', 'assertion_type' => 'comparison', 'comparison_operator' => '<', 'expected_value' => '10'],
-            ],
-        ],
-    ],
-],
+use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
+
+// Core services
+Checkybot::uptime('app')->url(config('app.url'))->everyMinute();
+Checkybot::uptime('api')->url(config('app.url') . '/api')->everyMinute();
+Checkybot::uptime('dashboard')->url(config('app.url') . '/dashboard')->everyFiveMinutes();
+
+// SSL certificates
+Checkybot::ssl('app-ssl')->url(config('app.url'))->daily();
+Checkybot::ssl('api-ssl')->url(config('api.url', config('app.url')))->daily();
+
+// Database health
+Checkybot::api('database')
+    ->url(config('app.url') . '/api/health/database')
+    ->everyFiveMinutes()
+    ->expect('status')->toEqual('connected')
+    ->expect('latency_ms')->toBeLessThan(100);
+
+// Redis health
+Checkybot::api('redis')
+    ->url(config('app.url') . '/api/health/redis')
+    ->everyFiveMinutes()
+    ->expect('status')->toEqual('connected');
+
+// Queue health
+Checkybot::api('queue')
+    ->url(config('app.url') . '/api/health/queue')
+    ->everyTenMinutes()
+    ->expect('workers')->toBeGreaterThanOrEqual(1)
+    ->expect('failed_jobs')->toBeLessThan(10)
+    ->expect('queue_size')->toBeLessThan(1000);
 ```
 
 ### Multi-tenant Application
 
 ```php
-'checks' => [
-    'uptime' => [
-        ['name' => 'main-app', 'url' => env('APP_URL'), 'interval' => '1m'],
-        ['name' => 'tenant-portal', 'url' => env('TENANT_URL', env('APP_URL') . '/tenant'), 'interval' => '5m'],
-        ['name' => 'admin-panel', 'url' => env('ADMIN_URL', env('APP_URL') . '/admin'), 'interval' => '5m'],
-    ],
-    'ssl' => [
-        ['name' => 'wildcard-ssl', 'url' => env('APP_URL'), 'interval' => '1d'],
-    ],
-    'api' => [
-        [
-            'name' => 'tenant-resolution',
-            'url' => env('APP_URL') . '/api/health/tenants',
-            'interval' => '5m',
-            'assertions' => [
-                ['data_path' => 'resolver_status', 'assertion_type' => 'comparison', 'comparison_operator' => '==', 'expected_value' => 'operational'],
-            ],
-        ],
-    ],
-],
+use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
+
+Checkybot::uptime('main-app')
+    ->url(config('app.url'))
+    ->everyMinute();
+
+Checkybot::uptime('tenant-portal')
+    ->url(config('tenant.url', config('app.url') . '/tenant'))
+    ->everyFiveMinutes();
+
+Checkybot::uptime('admin-panel')
+    ->url(config('admin.url', config('app.url') . '/admin'))
+    ->everyFiveMinutes();
+
+Checkybot::ssl('wildcard-ssl')
+    ->url(config('app.url'))
+    ->daily();
+
+Checkybot::api('tenant-resolution')
+    ->url(config('app.url') . '/api/health/tenants')
+    ->everyFiveMinutes()
+    ->expect('resolver_status')->toEqual('operational')
+    ->expect('active_tenants')->toBeGreaterThan(0);
 ```
 
 ## CI/CD Integration
@@ -519,6 +431,16 @@ cd {{ release }}
 php artisan checkybot:sync
 ```
 
+## Commands
+
+```bash
+# Sync all checks to Checkybot
+php artisan checkybot:sync
+
+# Preview changes without syncing
+php artisan checkybot:sync --dry-run
+```
+
 ## Troubleshooting
 
 ### "CHECKYBOT_API_KEY is not configured"
@@ -537,24 +459,23 @@ php artisan config:clear
 
 ### "Duplicate check names found"
 
-Each check name must be unique within its type. Change duplicates:
+Each check name must be unique within its type:
 
 ```php
 // Wrong - duplicate names
-['name' => 'homepage', 'url' => 'https://example.com', ...],
-['name' => 'homepage', 'url' => 'https://example.com/blog', ...],
+Checkybot::uptime('homepage')->url('https://example.com')->everyFiveMinutes();
+Checkybot::uptime('homepage')->url('https://example.com/blog')->everyFiveMinutes();
 
 // Correct - unique names
-['name' => 'homepage', 'url' => 'https://example.com', ...],
-['name' => 'blog', 'url' => 'https://example.com/blog', ...],
+Checkybot::uptime('homepage')->url('https://example.com')->everyFiveMinutes();
+Checkybot::uptime('blog')->url('https://example.com/blog')->everyFiveMinutes();
 ```
 
 ### "Connection timed out"
 
-Check your `CHECKYBOT_URL` is correct and accessible. You can also increase the timeout:
+Check your `CHECKYBOT_URL` is correct and accessible. You can also increase the timeout in `config/checkybot-laravel.php`:
 
 ```php
-// config/checkybot-laravel.php
 'timeout' => 60, // seconds
 ```
 

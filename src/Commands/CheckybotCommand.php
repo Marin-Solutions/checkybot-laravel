@@ -3,6 +3,7 @@
 namespace MarinSolutions\CheckybotLaravel\Commands;
 
 use Illuminate\Console\Command;
+use MarinSolutions\CheckybotLaravel\CheckRegistry;
 use MarinSolutions\CheckybotLaravel\ConfigValidator;
 use MarinSolutions\CheckybotLaravel\Exceptions\CheckybotSyncException;
 use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
@@ -14,13 +15,20 @@ class CheckybotCommand extends Command
 
     public $description = 'Sync monitoring checks with CheckyBot platform';
 
-    public function handle(ConfigValidator $validator): int
+    public function handle(ConfigValidator $validator, CheckRegistry $registry): int
     {
         $this->info('Checkybot Sync Starting...');
 
         $config = config('checkybot-laravel');
 
-        $validation = $validator->validate($config);
+        // Use registry if checks are defined there, otherwise fall back to config
+        $useRegistry = $registry->count() > 0;
+
+        if ($useRegistry) {
+            $validation = $validator->validateWithRegistry($config, $registry);
+        } else {
+            $validation = $validator->validate($config);
+        }
 
         if (! $validation['valid']) {
             $this->error('Configuration validation failed:');
@@ -31,7 +39,10 @@ class CheckybotCommand extends Command
             return self::FAILURE;
         }
 
-        $payload = $validator->transformPayload($config);
+        // Get payload from registry or config
+        $payload = $useRegistry
+            ? $registry->toArray()
+            : $validator->transformPayload($config);
 
         $totalChecks = count($payload['uptime_checks'])
             + count($payload['ssl_checks'])
