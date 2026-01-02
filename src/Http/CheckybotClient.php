@@ -4,6 +4,7 @@ namespace MarinSolutions\CheckybotLaravel\Http;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Exception\RequestException;
 use Illuminate\Support\Facades\Log;
 use MarinSolutions\CheckybotLaravel\Exceptions\CheckybotSyncException;
 
@@ -82,8 +83,10 @@ class CheckybotClient
 
     protected function parseErrorMessage(GuzzleException $e): string
     {
-        if (method_exists($e, 'hasResponse') && $e->hasResponse()) {
-            $body = json_decode($e->getResponse()->getBody()->getContents(), true);
+        if ($e instanceof RequestException && $e->hasResponse()) {
+            /** @var \Psr\Http\Message\ResponseInterface $response */
+            $response = $e->getResponse();
+            $body = json_decode($response->getBody()->getContents(), true);
 
             return $this->formatErrorMessage($body);
         }
