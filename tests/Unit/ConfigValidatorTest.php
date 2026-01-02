@@ -3,7 +3,7 @@
 use MarinSolutions\CheckybotLaravel\ConfigValidator;
 
 beforeEach(function () {
-    $this->validator = new ConfigValidator();
+    $this->validator = new ConfigValidator;
 });
 
 it('returns valid when api_key and project_id are present', function () {

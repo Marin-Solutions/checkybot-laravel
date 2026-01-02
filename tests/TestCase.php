@@ -3,8 +3,8 @@
 namespace MarinSolutions\CheckybotLaravel\Tests;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
-use Orchestra\Testbench\TestCase as Orchestra;
 use MarinSolutions\CheckybotLaravel\CheckybotLaravelServiceProvider;
+use Orchestra\Testbench\TestCase as Orchestra;
 
 class TestCase extends Orchestra
 {

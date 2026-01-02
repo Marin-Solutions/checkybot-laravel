@@ -1,13 +1,13 @@
 <?php
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
-use GuzzleHttp\Psr7\Response;
-use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Psr7\Request;
-use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
+use GuzzleHttp\Psr7\Response;
 use MarinSolutions\CheckybotLaravel\Exceptions\CheckybotSyncException;
+use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
 
 it('sends sync request to correct endpoint', function () {
     $mock = new MockHandler([

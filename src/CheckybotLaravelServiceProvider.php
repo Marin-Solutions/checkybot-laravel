@@ -31,7 +31,7 @@ class CheckybotLaravelServiceProvider extends PackageServiceProvider
         });
 
         $this->app->singleton(ConfigValidator::class, function ($app) {
-            return new ConfigValidator();
+            return new ConfigValidator;
         });
     }
 }
