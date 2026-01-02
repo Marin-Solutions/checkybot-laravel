@@ -1,0 +1,105 @@
+<?php
+
+namespace MarinSolutions\CheckybotLaravel\Http;
+
+use GuzzleHttp\Client;
+use GuzzleHttp\Exception\GuzzleException;
+use Illuminate\Support\Facades\Log;
+use MarinSolutions\CheckybotLaravel\Exceptions\CheckybotSyncException;
+
+class CheckybotClient
+{
+    protected Client $client;
+
+    public function __construct(
+        protected string $baseUrl,
+        protected string $apiKey,
+        protected string $projectId,
+        protected int $timeout = 30,
+        protected int $retryTimes = 3,
+        protected int $retryDelay = 1000,
+        ?Client $client = null
+    ) {
+        $this->client = $client ?? new Client([
+            'base_uri' => rtrim($baseUrl, '/'),
+            'timeout' => $timeout,
+            'headers' => [
+                'Accept' => 'application/json',
+                'Authorization' => 'Bearer '.$apiKey,
+            ],
+        ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     *
+     * @throws CheckybotSyncException
+     */
+    public function syncChecks(array $payload): array
+    {
+        $url = "/api/v1/projects/{$this->projectId}/checks/sync";
+
+        try {
+            $response = $this->client->post($url, [
+                'json' => $payload,
+                'headers' => [
+                    'Accept' => 'application/json',
+                    'Authorization' => 'Bearer '.$this->apiKey,
+                ],
+            ]);
+
+            $statusCode = $response->getStatusCode();
+
+            if ($statusCode >= 400) {
+                $body = json_decode($response->getBody()->getContents(), true);
+                throw new CheckybotSyncException(
+                    $this->formatErrorMessage($body),
+                    $statusCode
+                );
+            }
+
+            $body = json_decode($response->getBody()->getContents(), true);
+
+            Log::info('Checkybot sync successful', [
+                'project_id' => $this->projectId,
+                'summary' => $body['summary'] ?? null,
+            ]);
+
+            return $body;
+        } catch (GuzzleException $e) {
+            $errorMessage = $this->parseErrorMessage($e);
+
+            Log::error('Checkybot sync failed', [
+                'project_id' => $this->projectId,
+                'error' => $errorMessage,
+                'status_code' => $e->getCode(),
+            ]);
+
+            throw new CheckybotSyncException($errorMessage, (int) $e->getCode(), $e);
+        }
+    }
+
+    protected function parseErrorMessage(GuzzleException $e): string
+    {
+        if (method_exists($e, 'hasResponse') && $e->hasResponse()) {
+            $body = json_decode($e->getResponse()->getBody()->getContents(), true);
+
+            return $this->formatErrorMessage($body);
+        }
+
+        return $e->getMessage();
+    }
+
+    /**
+     * @param  array<string, mixed>|null  $body
+     */
+    protected function formatErrorMessage(?array $body): string
+    {
+        if (isset($body['errors'])) {
+            return 'Validation failed: '.json_encode($body['errors']);
+        }
+
+        return $body['message'] ?? 'Unknown error occurred';
+    }
+}
