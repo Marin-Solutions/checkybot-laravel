@@ -3,6 +3,8 @@
 namespace MarinSolutions\CheckybotLaravel;
 
 use MarinSolutions\CheckybotLaravel\Checks\ApiCheck;
+use MarinSolutions\CheckybotLaravel\Checks\LinkCheck;
+use MarinSolutions\CheckybotLaravel\Checks\OpenGraphCheck;
 use MarinSolutions\CheckybotLaravel\Checks\SslCheck;
 use MarinSolutions\CheckybotLaravel\Checks\UptimeCheck;
 
@@ -36,6 +38,20 @@ class CheckRegistry
      * @var array<int, ApiCheck>
      */
     protected array $apiChecks = [];
+
+    /**
+     * Registered link checks.
+     *
+     * @var array<int, LinkCheck>
+     */
+    protected array $linkChecks = [];
+
+    /**
+     * Registered OpenGraph checks.
+     *
+     * @var array<int, OpenGraphCheck>
+     */
+    protected array $openGraphChecks = [];
 
     /**
      * Create a new uptime check.
@@ -109,6 +125,53 @@ class CheckRegistry
     }
 
     /**
+     * Create a new dead link check.
+     *
+     * Link checks monitor a page and verify all links are valid.
+     *
+     * @param  string  $name  Unique identifier for this check
+     * @return LinkCheck Fluent builder for configuring the check
+     *
+     * @example
+     * ```php
+     * Checkybot::links('homepage-links')
+     *     ->url('https://example.com')
+     *     ->daily();
+     * ```
+     */
+    public function links(string $name): LinkCheck
+    {
+        $check = new LinkCheck($name);
+        $this->linkChecks[] = $check;
+
+        return $check;
+    }
+
+    /**
+     * Create a new OpenGraph check.
+     *
+     * OpenGraph checks validate required OG meta tags on a page.
+     *
+     * @param  string  $name  Unique identifier for this check
+     * @return OpenGraphCheck Fluent builder for configuring the check
+     *
+     * @example
+     * ```php
+     * Checkybot::openGraph('homepage-og')
+     *     ->url('https://example.com')
+     *     ->requireTags(['og:title', 'og:image'])
+     *     ->daily();
+     * ```
+     */
+    public function openGraph(string $name): OpenGraphCheck
+    {
+        $check = new OpenGraphCheck($name);
+        $this->openGraphChecks[] = $check;
+
+        return $check;
+    }
+
+    /**
      * Get all registered uptime checks.
      *
      * @return array<int, UptimeCheck>
@@ -139,13 +202,35 @@ class CheckRegistry
     }
 
     /**
+     * Get all registered link checks.
+     *
+     * @return array<int, LinkCheck>
+     */
+    public function getLinkChecks(): array
+    {
+        return $this->linkChecks;
+    }
+
+    /**
+     * Get all registered OpenGraph checks.
+     *
+     * @return array<int, OpenGraphCheck>
+     */
+    public function getOpenGraphChecks(): array
+    {
+        return $this->openGraphChecks;
+    }
+
+    /**
      * Get the total number of registered checks.
      */
     public function count(): int
     {
         return count($this->uptimeChecks)
             + count($this->sslChecks)
-            + count($this->apiChecks);
+            + count($this->apiChecks)
+            + count($this->linkChecks)
+            + count($this->openGraphChecks);
     }
 
     /**
@@ -160,6 +245,8 @@ class CheckRegistry
         $this->uptimeChecks = [];
         $this->sslChecks = [];
         $this->apiChecks = [];
+        $this->linkChecks = [];
+        $this->openGraphChecks = [];
 
         return $this;
     }
@@ -167,7 +254,7 @@ class CheckRegistry
     /**
      * Convert all checks to array format for API payload.
      *
-     * @return array{uptime_checks: array<int, array<string, mixed>>, ssl_checks: array<int, array<string, mixed>>, api_checks: array<int, array<string, mixed>>}
+     * @return array{uptime_checks: array<int, array<string, mixed>>, ssl_checks: array<int, array<string, mixed>>, api_checks: array<int, array<string, mixed>>, link_checks: array<int, array<string, mixed>>, open_graph_checks: array<int, array<string, mixed>>}
      */
     public function toArray(): array
     {
@@ -175,6 +262,8 @@ class CheckRegistry
             'uptime_checks' => array_map(fn (UptimeCheck $check) => $check->toArray(), $this->uptimeChecks),
             'ssl_checks' => array_map(fn (SslCheck $check) => $check->toArray(), $this->sslChecks),
             'api_checks' => array_map(fn (ApiCheck $check) => $check->toArray(), $this->apiChecks),
+            'link_checks' => array_map(fn (LinkCheck $check) => $check->toArray(), $this->linkChecks),
+            'open_graph_checks' => array_map(fn (OpenGraphCheck $check) => $check->toArray(), $this->openGraphChecks),
         ];
     }
 }

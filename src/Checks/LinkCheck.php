@@ -3,37 +3,47 @@
 namespace MarinSolutions\CheckybotLaravel\Checks;
 
 /**
- * Fluent builder for uptime monitoring checks.
+ * Fluent builder for dead link monitoring checks.
  *
- * Uptime checks monitor website availability and response times.
+ * Link checks monitor a page and verify that all links on it
+ * are valid and not returning 404 or other error status codes.
  *
  * @example
  * ```php
  * use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
  *
- * // Simple uptime check
- * Checkybot::uptime('homepage')
+ * // Simple link check
+ * Checkybot::links('homepage-links')
  *     ->url('https://example.com')
- *     ->every('5m');
+ *     ->daily();
  *
- * // With max redirects
- * Checkybot::uptime('blog')
- *     ->url('https://blog.example.com')
- *     ->every('10m')
- *     ->maxRedirects(5);
+ * // With custom depth and exclusions
+ * Checkybot::links('docs-links')
+ *     ->url('https://example.com/docs')
+ *     ->every('12h')
+ *     ->maxDepth(2)
+ *     ->exclude(['/admin/*', '/logout']);
  *
- * // Using helper methods
- * Checkybot::uptime('api')
- *     ->url('https://api.example.com')
- *     ->everyMinute();
+ * // Protected page with headers
+ * Checkybot::links('dashboard-links')
+ *     ->url('https://example.com/dashboard')
+ *     ->withToken(config('services.monitoring.token'))
+ *     ->daily();
  * ```
  */
-class UptimeCheck extends BaseCheck
+class LinkCheck extends BaseCheck
 {
     /**
-     * Maximum number of redirects to follow.
+     * Maximum crawl depth from the starting URL.
      */
-    protected ?int $maxRedirects = null;
+    protected ?int $maxDepth = null;
+
+    /**
+     * Paths or patterns to exclude from link checking.
+     *
+     * @var array<int, string>
+     */
+    protected array $excludePaths = [];
 
     /**
      * HTTP headers to send with the request.
@@ -43,44 +53,33 @@ class UptimeCheck extends BaseCheck
     protected array $headers = [];
 
     /**
-     * Set the maximum number of redirects to follow.
+     * Set the maximum crawl depth.
      *
-     * @param  int  $max  Maximum redirects (default: 10)
+     * @param  int  $depth  Maximum depth to crawl (default: 1)
      * @return $this
-     *
-     * @example
-     * ```php
-     * Checkybot::uptime('homepage')
-     *     ->url('https://example.com')
-     *     ->maxRedirects(5)
-     *     ->every('5m');
-     * ```
      */
-    public function maxRedirects(int $max): self
+    public function maxDepth(int $depth): self
     {
-        $this->maxRedirects = $max;
+        $this->maxDepth = $depth;
 
         return $this;
     }
 
     /**
-     * Alias for maxRedirects() - follows Pest-style naming.
+     * Set paths or patterns to exclude from link checking.
      *
-     * @param  int  $max  Maximum redirects
+     * @param  array<int, string>  $paths  Patterns to exclude
      * @return $this
-     *
-     * @see maxRedirects()
      */
-    public function followRedirects(int $max = 10): self
+    public function exclude(array $paths): self
     {
-        return $this->maxRedirects($max);
+        $this->excludePaths = $paths;
+
+        return $this;
     }
 
     /**
      * Set HTTP headers to send with the request.
-     *
-     * Useful for monitoring protected pages or APIs
-     * that require authentication headers.
      *
      * @param  array<string, string>  $headers  Key-value pairs of headers
      * @return $this
@@ -130,8 +129,12 @@ class UptimeCheck extends BaseCheck
             'interval' => $this->interval,
         ];
 
-        if ($this->maxRedirects !== null) {
-            $data['max_redirects'] = $this->maxRedirects;
+        if ($this->maxDepth !== null) {
+            $data['max_depth'] = $this->maxDepth;
+        }
+
+        if (! empty($this->excludePaths)) {
+            $data['exclude_paths'] = $this->excludePaths;
         }
 
         if (! empty($this->headers)) {

@@ -46,7 +46,9 @@ class CheckybotCommand extends Command
 
         $totalChecks = count($payload['uptime_checks'])
             + count($payload['ssl_checks'])
-            + count($payload['api_checks']);
+            + count($payload['api_checks'])
+            + count($payload['link_checks'])
+            + count($payload['open_graph_checks']);
 
         $this->comment("Found {$totalChecks} checks to sync");
 
@@ -82,9 +84,16 @@ class CheckybotCommand extends Command
         $this->comment('DRY RUN - No changes will be made');
         $this->line('');
 
-        foreach (['uptime_checks', 'ssl_checks', 'api_checks'] as $type) {
+        foreach (['uptime_checks', 'ssl_checks', 'api_checks', 'link_checks', 'open_graph_checks'] as $type) {
             if (! empty($payload[$type])) {
-                $this->info(ucwords(str_replace('_', ' ', $type)).':');
+                if ($type === 'link_checks') {
+                    $label = 'Link Checks';
+                } elseif ($type === 'open_graph_checks') {
+                    $label = 'OpenGraph Checks';
+                } else {
+                    $label = ucwords(str_replace('_', ' ', $type));
+                }
+                $this->info($label.':');
                 foreach ($payload[$type] as $check) {
                     $this->line("  - {$check['name']} ({$check['url']}) every {$check['interval']}");
                 }
@@ -102,7 +111,13 @@ class CheckybotCommand extends Command
         $this->info('Sync Summary:');
 
         foreach ($summary as $type => $counts) {
-            $label = ucwords(str_replace('_', ' ', $type));
+            if ($type === 'link_checks') {
+                $label = 'Link Checks';
+            } elseif ($type === 'open_graph_checks') {
+                $label = 'OpenGraph Checks';
+            } else {
+                $label = ucwords(str_replace('_', ' ', $type));
+            }
             $this->line("  {$label}:");
             $this->line("    Created: {$counts['created']}");
             $this->line("    Updated: {$counts['updated']}");

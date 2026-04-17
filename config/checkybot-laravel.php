@@ -31,8 +31,13 @@ return [
     |--------------------------------------------------------------------------
     |
     | Define your monitoring checks below. Each check must have a unique name
-    | within its type (uptime, ssl, api). Names are used to identify checks
-    | during sync operations.
+    | within its type (uptime, ssl, api, dead_links, open_graph). Names are
+    | used to identify checks during sync operations.
+    |
+    | Common intervals:
+    |   - '1m', '5m', '10m', '15m', '30m'  (minutes)
+    |   - '1h', '2h', '6h', '12h'          (hours)
+    |   - '1d', '7d'                       (days)
     |
     */
 
@@ -45,13 +50,8 @@ return [
         |
         | Monitor website uptime and response times.
         |
-        | Required fields:
-        |   - name: Unique identifier for this check
-        |   - url: Full URL to monitor
-        |   - interval: How often to check (format: {number}{m|h|d})
-        |
-        | Optional fields:
-        |   - max_redirects: Maximum redirects to follow (default: 10)
+        | Required: name, url, interval
+        | Optional: max_redirects, headers
         |
         */
 
@@ -61,6 +61,9 @@ return [
             //     'url' => env('APP_URL'),
             //     'interval' => '5m',
             //     'max_redirects' => 10,
+            //     'headers' => [
+            //         'Authorization' => 'Bearer ' . env('MONITORING_TOKEN'),
+            //     ],
             // ],
         ],
 
@@ -71,10 +74,7 @@ return [
         |
         | Monitor SSL certificate expiration.
         |
-        | Required fields:
-        |   - name: Unique identifier for this check
-        |   - url: Full URL to check SSL certificate
-        |   - interval: How often to check (typically '1d' for daily)
+        | Required: name, url, interval
         |
         */
 
@@ -93,20 +93,8 @@ return [
         |
         | Monitor API endpoints and validate JSON responses.
         |
-        | Required fields:
-        |   - name: Unique identifier for this check
-        |   - url: Full API endpoint URL
-        |   - interval: How often to check
-        |
-        | Optional fields:
-        |   - headers: Array of HTTP headers to send
-        |   - assertions: Array of validation rules for the response
-        |
-        | Assertion Types:
-        |   - exists: Check if a JSON path exists
-        |   - type: Check if value matches expected type
-        |   - comparison: Compare value using operator
-        |   - regex: Match value against regex pattern
+        | Required: name, url, interval
+        | Optional: headers, assertions
         |
         */
 
@@ -126,6 +114,49 @@ return [
             //             'is_active' => true,
             //         ],
             //     ],
+            // ],
+        ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | Dead Link Checks
+        |--------------------------------------------------------------------------
+        |
+        | Monitor pages for broken or dead links.
+        |
+        | Required: name, url, interval
+        | Optional: max_depth, exclude_paths, headers
+        |
+        */
+
+        'dead_links' => [
+            // [
+            //     'name' => 'homepage-links',
+            //     'url' => env('APP_URL'),
+            //     'interval' => '1d',
+            //     'max_depth' => 1,
+            //     'exclude_paths' => ['/admin/*', '/logout'],
+            // ],
+        ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | OpenGraph Checks
+        |--------------------------------------------------------------------------
+        |
+        | Validate OpenGraph meta tags on pages.
+        |
+        | Required: name, url, interval
+        | Optional: required_tags, headers
+        |
+        */
+
+        'open_graph' => [
+            // [
+            //     'name' => 'homepage-og',
+            //     'url' => env('APP_URL'),
+            //     'interval' => '1d',
+            //     'required_tags' => ['og:title', 'og:description', 'og:image'],
             // ],
         ],
     ],

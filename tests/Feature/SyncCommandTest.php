@@ -40,6 +40,8 @@ it('shows dry run output without making api call', function () {
             ],
             'ssl' => [],
             'api' => [],
+            'dead_links' => [],
+            'open_graph' => [],
         ],
     ]);
 
@@ -63,6 +65,8 @@ it('syncs checks successfully', function () {
             ],
             'ssl' => [],
             'api' => [],
+            'dead_links' => [],
+            'open_graph' => [],
         ],
     ]);
 
@@ -106,6 +110,8 @@ it('handles api errors gracefully', function () {
             'uptime' => [],
             'ssl' => [],
             'api' => [],
+            'dead_links' => [],
+            'open_graph' => [],
         ],
     ]);
 
@@ -213,6 +219,8 @@ it('displays sync summary with created updated and deleted counts', function () 
             ],
             'ssl' => [],
             'api' => [],
+            'dead_links' => [],
+            'open_graph' => [],
         ],
     ]);
 
@@ -275,6 +283,8 @@ it('shows zero checks when config is empty', function () {
             'uptime' => [],
             'ssl' => [],
             'api' => [],
+            'dead_links' => [],
+            'open_graph' => [],
         ],
     ]);
 
@@ -323,10 +333,12 @@ it('handles validation error from api with detailed message', function () {
         'checkybot-laravel.retry_delay' => 1000,
         'checkybot-laravel.checks' => [
             'uptime' => [
-                ['name' => 'test', 'url' => 'invalid-url', 'interval' => '5m'],
+                ['name' => 'test', 'url' => 'https://example.com', 'interval' => '5m'],
             ],
             'ssl' => [],
             'api' => [],
+            'dead_links' => [],
+            'open_graph' => [],
         ],
     ]);
 
@@ -433,6 +445,8 @@ it('handles network timeout error gracefully', function () {
             'uptime' => [],
             'ssl' => [],
             'api' => [],
+            'dead_links' => [],
+            'open_graph' => [],
         ],
     ]);
 
@@ -458,4 +472,190 @@ it('handles network timeout error gracefully', function () {
     $this->artisan('checkybot:sync')
         ->expectsOutputToContain('Sync failed')
         ->assertExitCode(1);
+});
+
+it('shows dry run output for dead link checks', function () {
+    config([
+        'checkybot-laravel.api_key' => 'test-key',
+        'checkybot-laravel.project_id' => '1',
+        'checkybot-laravel.checks' => [
+            'uptime' => [],
+            'ssl' => [],
+            'api' => [],
+            'dead_links' => [
+                ['name' => 'homepage-links', 'url' => 'https://example.com', 'interval' => '1d'],
+            ],
+            'open_graph' => [],
+        ],
+    ]);
+
+    $this->artisan('checkybot:sync --dry-run')
+        ->expectsOutput('DRY RUN - No changes will be made')
+        ->expectsOutputToContain('homepage-links')
+        ->expectsOutputToContain('Link Checks')
+        ->assertExitCode(0);
+});
+
+it('shows dry run output for open graph checks', function () {
+    config([
+        'checkybot-laravel.api_key' => 'test-key',
+        'checkybot-laravel.project_id' => '1',
+        'checkybot-laravel.checks' => [
+            'uptime' => [],
+            'ssl' => [],
+            'api' => [],
+            'dead_links' => [],
+            'open_graph' => [
+                ['name' => 'homepage-og', 'url' => 'https://example.com', 'interval' => '1d'],
+            ],
+        ],
+    ]);
+
+    $this->artisan('checkybot:sync --dry-run')
+        ->expectsOutput('DRY RUN - No changes will be made')
+        ->expectsOutputToContain('homepage-og')
+        ->expectsOutputToContain('OpenGraph Checks')
+        ->assertExitCode(0);
+});
+
+it('fails validation for invalid url in config', function () {
+    config([
+        'checkybot-laravel.api_key' => 'test-key',
+        'checkybot-laravel.project_id' => '1',
+        'checkybot-laravel.checks' => [
+            'uptime' => [
+                ['name' => 'homepage', 'url' => 'not-a-valid-url', 'interval' => '5m'],
+            ],
+            'ssl' => [],
+            'api' => [],
+            'dead_links' => [],
+            'open_graph' => [],
+        ],
+    ]);
+
+    $this->artisan('checkybot:sync')
+        ->expectsOutput('Configuration validation failed:')
+        ->expectsOutputToContain("has an invalid URL")
+        ->assertExitCode(1);
+});
+
+it('fails validation for invalid interval in config', function () {
+    config([
+        'checkybot-laravel.api_key' => 'test-key',
+        'checkybot-laravel.project_id' => '1',
+        'checkybot-laravel.checks' => [
+            'uptime' => [
+                ['name' => 'homepage', 'url' => 'https://example.com', 'interval' => 'every-so-often'],
+            ],
+            'ssl' => [],
+            'api' => [],
+            'dead_links' => [],
+            'open_graph' => [],
+        ],
+    ]);
+
+    $this->artisan('checkybot:sync')
+        ->expectsOutput('Configuration validation failed:')
+        ->expectsOutputToContain("has an invalid interval")
+        ->assertExitCode(1);
+});
+
+it('fails validation for missing url in config', function () {
+    config([
+        'checkybot-laravel.api_key' => 'test-key',
+        'checkybot-laravel.project_id' => '1',
+        'checkybot-laravel.checks' => [
+            'uptime' => [
+                ['name' => 'homepage', 'url' => '', 'interval' => '5m'],
+            ],
+            'ssl' => [],
+            'api' => [],
+            'dead_links' => [],
+            'open_graph' => [],
+        ],
+    ]);
+
+    $this->artisan('checkybot:sync')
+        ->expectsOutput('Configuration validation failed:')
+        ->expectsOutputToContain("is missing a URL")
+        ->assertExitCode(1);
+});
+
+it('fails validation for missing interval in config', function () {
+    config([
+        'checkybot-laravel.api_key' => 'test-key',
+        'checkybot-laravel.project_id' => '1',
+        'checkybot-laravel.checks' => [
+            'uptime' => [
+                ['name' => 'homepage', 'url' => 'https://example.com', 'interval' => ''],
+            ],
+            'ssl' => [],
+            'api' => [],
+            'dead_links' => [],
+            'open_graph' => [],
+        ],
+    ]);
+
+    $this->artisan('checkybot:sync')
+        ->expectsOutput('Configuration validation failed:')
+        ->expectsOutputToContain("is missing an interval")
+        ->assertExitCode(1);
+});
+
+it('syncs with all five check types populated', function () {
+    config([
+        'checkybot-laravel.api_key' => 'test-key',
+        'checkybot-laravel.project_id' => '1',
+        'checkybot-laravel.base_url' => 'https://checkybot.com',
+        'checkybot-laravel.timeout' => 30,
+        'checkybot-laravel.retry_times' => 3,
+        'checkybot-laravel.retry_delay' => 1000,
+        'checkybot-laravel.checks' => [
+            'uptime' => [
+                ['name' => 'site1', 'url' => 'https://site1.com', 'interval' => '5m'],
+            ],
+            'ssl' => [
+                ['name' => 'ssl1', 'url' => 'https://site1.com', 'interval' => '1d'],
+            ],
+            'api' => [
+                ['name' => 'api1', 'url' => 'https://site1.com/api/health', 'interval' => '5m'],
+            ],
+            'dead_links' => [
+                ['name' => 'links1', 'url' => 'https://site1.com', 'interval' => '1d'],
+            ],
+            'open_graph' => [
+                ['name' => 'og1', 'url' => 'https://site1.com', 'interval' => '1d'],
+            ],
+        ],
+    ]);
+
+    $mock = new MockHandler([
+        new Response(200, [], json_encode([
+            'message' => 'Checks synced successfully',
+            'summary' => [
+                'uptime_checks' => ['created' => 1, 'updated' => 0, 'deleted' => 0],
+                'ssl_checks' => ['created' => 1, 'updated' => 0, 'deleted' => 0],
+                'api_checks' => ['created' => 1, 'updated' => 0, 'deleted' => 0],
+                'link_checks' => ['created' => 1, 'updated' => 0, 'deleted' => 0],
+                'open_graph_checks' => ['created' => 1, 'updated' => 0, 'deleted' => 0],
+            ],
+        ])),
+    ]);
+
+    $handlerStack = HandlerStack::create($mock);
+    $guzzle = new Client(['handler' => $handlerStack]);
+
+    $client = new CheckybotClient(
+        baseUrl: 'https://checkybot.com',
+        apiKey: 'test-key',
+        projectId: '1',
+        client: $guzzle
+    );
+
+    $this->app->instance(CheckybotClient::class, $client);
+
+    $this->artisan('checkybot:sync')
+        ->expectsOutputToContain('Found 5 checks to sync')
+        ->expectsOutputToContain('Sync completed successfully')
+        ->assertExitCode(0);
 });

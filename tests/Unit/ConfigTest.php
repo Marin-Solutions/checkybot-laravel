@@ -23,11 +23,13 @@ it('has default values for optional settings', function () {
         ->and($config['retry_delay'])->toBe(1000);
 });
 
-it('has checks structure with uptime ssl and api sections', function () {
+it('has checks structure with all check sections', function () {
     $config = include __DIR__.'/../../config/checkybot-laravel.php';
 
-    expect($config['checks'])->toHaveKeys(['uptime', 'ssl', 'api'])
+    expect($config['checks'])->toHaveKeys(['uptime', 'ssl', 'api', 'dead_links', 'open_graph'])
         ->and($config['checks']['uptime'])->toBeArray()
         ->and($config['checks']['ssl'])->toBeArray()
-        ->and($config['checks']['api'])->toBeArray();
+        ->and($config['checks']['api'])->toBeArray()
+        ->and($config['checks']['dead_links'])->toBeArray()
+        ->and($config['checks']['open_graph'])->toBeArray();
 });
