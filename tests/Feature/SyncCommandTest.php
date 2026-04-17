@@ -1,8 +1,10 @@
 <?php
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
 
@@ -451,9 +453,9 @@ it('handles network timeout error gracefully', function () {
     ]);
 
     $mock = new MockHandler([
-        new \GuzzleHttp\Exception\ConnectException(
+        new ConnectException(
             'Connection timed out',
-            new \GuzzleHttp\Psr7\Request('POST', '/api/v1/projects/1/checks/sync')
+            new Request('POST', '/api/v1/projects/1/checks/sync')
         ),
     ]);
 
@@ -535,7 +537,7 @@ it('fails validation for invalid url in config', function () {
 
     $this->artisan('checkybot:sync')
         ->expectsOutput('Configuration validation failed:')
-        ->expectsOutputToContain("has an invalid URL")
+        ->expectsOutputToContain('has an invalid URL')
         ->assertExitCode(1);
 });
 
@@ -556,7 +558,7 @@ it('fails validation for invalid interval in config', function () {
 
     $this->artisan('checkybot:sync')
         ->expectsOutput('Configuration validation failed:')
-        ->expectsOutputToContain("has an invalid interval")
+        ->expectsOutputToContain('has an invalid interval')
         ->assertExitCode(1);
 });
 
@@ -577,7 +579,7 @@ it('fails validation for missing url in config', function () {
 
     $this->artisan('checkybot:sync')
         ->expectsOutput('Configuration validation failed:')
-        ->expectsOutputToContain("is missing a URL")
+        ->expectsOutputToContain('is missing a URL')
         ->assertExitCode(1);
 });
 
@@ -598,7 +600,7 @@ it('fails validation for missing interval in config', function () {
 
     $this->artisan('checkybot:sync')
         ->expectsOutput('Configuration validation failed:')
-        ->expectsOutputToContain("is missing an interval")
+        ->expectsOutputToContain('is missing an interval')
         ->assertExitCode(1);
 });
 

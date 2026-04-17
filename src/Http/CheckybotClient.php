@@ -7,6 +7,7 @@ use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\RequestException;
 use Illuminate\Support\Facades\Log;
 use MarinSolutions\CheckybotLaravel\Exceptions\CheckybotSyncException;
+use Psr\Http\Message\ResponseInterface;
 
 class CheckybotClient
 {
@@ -84,7 +85,7 @@ class CheckybotClient
     protected function parseErrorMessage(GuzzleException $e): string
     {
         if ($e instanceof RequestException && $e->hasResponse()) {
-            /** @var \Psr\Http\Message\ResponseInterface $response */
+            /** @var ResponseInterface $response */
             $response = $e->getResponse();
             $body = json_decode($response->getBody()->getContents(), true);
 

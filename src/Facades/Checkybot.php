@@ -28,7 +28,7 @@ use MarinSolutions\CheckybotLaravel\Checks\UptimeCheck;
  * @method static CheckRegistry flush() Clear all registered checks
  * @method static array toArray() Convert all checks to array format
  *
- * @see \MarinSolutions\CheckybotLaravel\CheckRegistry
+ * @see CheckRegistry
  *
  * @example Uptime check
  * ```php

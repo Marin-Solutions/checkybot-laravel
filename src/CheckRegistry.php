@@ -7,6 +7,7 @@ use MarinSolutions\CheckybotLaravel\Checks\LinkCheck;
 use MarinSolutions\CheckybotLaravel\Checks\OpenGraphCheck;
 use MarinSolutions\CheckybotLaravel\Checks\SslCheck;
 use MarinSolutions\CheckybotLaravel\Checks\UptimeCheck;
+use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
 
 /**
  * Registry for all monitoring checks.
@@ -14,7 +15,7 @@ use MarinSolutions\CheckybotLaravel\Checks\UptimeCheck;
  * This class serves as the central store for all defined checks,
  * accessible via the Checkybot facade.
  *
- * @see \MarinSolutions\CheckybotLaravel\Facades\Checkybot
+ * @see Checkybot
  */
 class CheckRegistry
 {
