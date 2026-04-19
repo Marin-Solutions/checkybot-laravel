@@ -86,14 +86,7 @@ class CheckybotCommand extends Command
 
         foreach (['uptime_checks', 'ssl_checks', 'api_checks', 'link_checks', 'open_graph_checks'] as $type) {
             if (! empty($payload[$type])) {
-                if ($type === 'link_checks') {
-                    $label = 'Link Checks';
-                } elseif ($type === 'open_graph_checks') {
-                    $label = 'OpenGraph Checks';
-                } else {
-                    $label = ucwords(str_replace('_', ' ', $type));
-                }
-                $this->info($label.':');
+                $this->info($this->labelForType($type).':');
                 foreach ($payload[$type] as $check) {
                     $this->line("  - {$check['name']} ({$check['url']}) every {$check['interval']}");
                 }
@@ -111,19 +104,21 @@ class CheckybotCommand extends Command
         $this->info('Sync Summary:');
 
         foreach ($summary as $type => $counts) {
-            if ($type === 'link_checks') {
-                $label = 'Link Checks';
-            } elseif ($type === 'open_graph_checks') {
-                $label = 'OpenGraph Checks';
-            } else {
-                $label = ucwords(str_replace('_', ' ', $type));
-            }
-            $this->line("  {$label}:");
+            $this->line("  {$this->labelForType($type)}:");
             $this->line("    Created: {$counts['created']}");
             $this->line("    Updated: {$counts['updated']}");
             $this->line("    Deleted: {$counts['deleted']}");
         }
 
         $this->line('');
+    }
+
+    protected function labelForType(string $type): string
+    {
+        return match ($type) {
+            'link_checks' => 'Link Checks',
+            'open_graph_checks' => 'OpenGraph Checks',
+            default => ucwords(str_replace('_', ' ', $type)),
+        };
     }
 }
