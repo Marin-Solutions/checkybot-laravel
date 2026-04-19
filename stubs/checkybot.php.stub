@@ -40,3 +40,18 @@ Checkybot::ssl('main-certificate')
 //     ->everyFiveMinutes()
 //     ->expect('status')->toEqual('healthy')
 //     ->expect('database.connected')->toBeTrue();
+
+// Dead Link Checks
+// Monitor pages for broken links
+
+// Checkybot::links('homepage-links')
+//     ->url(config('app.url'))
+//     ->daily();
+
+// OpenGraph Checks
+// Validate OpenGraph meta tags
+
+// Checkybot::openGraph('homepage-og')
+//     ->url(config('app.url'))
+//     ->daily()
+//     ->requireTags(['og:title', 'og:description', 'og:image']);

@@ -3,37 +3,41 @@
 namespace MarinSolutions\CheckybotLaravel\Checks;
 
 /**
- * Fluent builder for uptime monitoring checks.
+ * Fluent builder for OpenGraph tag validation checks.
  *
- * Uptime checks monitor website availability and response times.
+ * OpenGraph checks monitor a page to ensure required OpenGraph
+ * meta tags are present and valid.
  *
  * @example
  * ```php
  * use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
  *
- * // Simple uptime check
- * Checkybot::uptime('homepage')
+ * // Simple OpenGraph check
+ * Checkybot::openGraph('homepage-og')
  *     ->url('https://example.com')
- *     ->every('5m');
+ *     ->daily();
  *
- * // With max redirects
- * Checkybot::uptime('blog')
- *     ->url('https://blog.example.com')
- *     ->every('10m')
- *     ->maxRedirects(5);
+ * // With required tags
+ * Checkybot::openGraph('blog-og')
+ *     ->url('https://example.com/blog')
+ *     ->every('12h')
+ *     ->requireTags(['og:title', 'og:description', 'og:image', 'og:url']);
  *
- * // Using helper methods
- * Checkybot::uptime('api')
- *     ->url('https://api.example.com')
- *     ->everyMinute();
+ * // Protected page with headers
+ * Checkybot::openGraph('dashboard-og')
+ *     ->url('https://example.com/dashboard')
+ *     ->withToken(config('services.monitoring.token'))
+ *     ->daily();
  * ```
  */
-class UptimeCheck extends BaseCheck
+class OpenGraphCheck extends BaseCheck
 {
     /**
-     * Maximum number of redirects to follow.
+     * Required OpenGraph tags that must be present.
+     *
+     * @var array<int, string>
      */
-    protected ?int $maxRedirects = null;
+    protected array $requiredTags = [];
 
     /**
      * HTTP headers to send with the request.
@@ -43,44 +47,33 @@ class UptimeCheck extends BaseCheck
     protected array $headers = [];
 
     /**
-     * Set the maximum number of redirects to follow.
+     * Set the required OpenGraph tags.
      *
-     * @param  int  $max  Maximum redirects (default: 10)
+     * @param  array<int, string>  $tags  Tag names that must exist (e.g., 'og:title')
      * @return $this
-     *
-     * @example
-     * ```php
-     * Checkybot::uptime('homepage')
-     *     ->url('https://example.com')
-     *     ->maxRedirects(5)
-     *     ->every('5m');
-     * ```
      */
-    public function maxRedirects(int $max): self
+    public function requireTags(array $tags): self
     {
-        $this->maxRedirects = $max;
+        $this->requiredTags = $tags;
 
         return $this;
     }
 
     /**
-     * Alias for maxRedirects() - follows Pest-style naming.
+     * Require a single OpenGraph tag.
      *
-     * @param  int  $max  Maximum redirects
+     * @param  string  $tag  Tag name that must exist
      * @return $this
-     *
-     * @see maxRedirects()
      */
-    public function followRedirects(int $max = 10): self
+    public function requireTag(string $tag): self
     {
-        return $this->maxRedirects($max);
+        $this->requiredTags[] = $tag;
+
+        return $this;
     }
 
     /**
      * Set HTTP headers to send with the request.
-     *
-     * Useful for monitoring protected pages or APIs
-     * that require authentication headers.
      *
      * @param  array<string, string>  $headers  Key-value pairs of headers
      * @return $this
@@ -130,8 +123,8 @@ class UptimeCheck extends BaseCheck
             'interval' => $this->interval,
         ];
 
-        if ($this->maxRedirects !== null) {
-            $data['max_redirects'] = $this->maxRedirects;
+        if (! empty($this->requiredTags)) {
+            $data['required_tags'] = $this->requiredTags;
         }
 
         if (! empty($this->headers)) {

@@ -235,3 +235,57 @@ it('chains methods fluently', function () {
         ->and($check->getInterval())->toBe('5m')
         ->and($check->toArray()['max_redirects'])->toBe(5);
 });
+
+it('sets headers as array', function () {
+    $check = (new UptimeCheck('homepage'))
+        ->url('https://example.com')
+        ->headers([
+            'Authorization' => 'Bearer token',
+            'Accept' => 'text/html',
+        ]);
+
+    $array = $check->toArray();
+
+    expect($array['headers'])->toBe([
+        'Authorization' => 'Bearer token',
+        'Accept' => 'text/html',
+    ]);
+});
+
+it('adds single header with withHeader', function () {
+    $check = (new UptimeCheck('homepage'))
+        ->url('https://example.com')
+        ->withHeader('Authorization', 'Bearer token');
+
+    $array = $check->toArray();
+
+    expect($array['headers']['Authorization'])->toBe('Bearer token');
+});
+
+it('adds bearer token with withToken', function () {
+    $check = (new UptimeCheck('homepage'))
+        ->url('https://example.com')
+        ->withToken('my-secret-token');
+
+    $array = $check->toArray();
+
+    expect($array['headers']['Authorization'])->toBe('Bearer my-secret-token');
+});
+
+it('converts to array with headers', function () {
+    $check = (new UptimeCheck('homepage'))
+        ->url('https://example.com')
+        ->every('5m')
+        ->maxRedirects(10)
+        ->headers(['Authorization' => 'Bearer token']);
+
+    $array = $check->toArray();
+
+    expect($array)->toBe([
+        'name' => 'homepage',
+        'url' => 'https://example.com',
+        'interval' => '5m',
+        'max_redirects' => 10,
+        'headers' => ['Authorization' => 'Bearer token'],
+    ]);
+});

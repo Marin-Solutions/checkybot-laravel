@@ -17,14 +17,18 @@ use MarinSolutions\CheckybotLaravel\Checks\UptimeCheck;
  * @method static UptimeCheck uptime(string $name) Create a new uptime check
  * @method static SslCheck ssl(string $name) Create a new SSL certificate check
  * @method static ApiCheck api(string $name) Create a new API endpoint check
+ * @method static \MarinSolutions\CheckybotLaravel\Checks\LinkCheck links(string $name) Create a new dead link check
+ * @method static \MarinSolutions\CheckybotLaravel\Checks\OpenGraphCheck openGraph(string $name) Create a new OpenGraph check
  * @method static array<int, UptimeCheck> getUptimeChecks() Get all registered uptime checks
  * @method static array<int, SslCheck> getSslChecks() Get all registered SSL checks
  * @method static array<int, ApiCheck> getApiChecks() Get all registered API checks
+ * @method static array<int, \MarinSolutions\CheckybotLaravel\Checks\LinkCheck> getLinkChecks() Get all registered link checks
+ * @method static array<int, \MarinSolutions\CheckybotLaravel\Checks\OpenGraphCheck> getOpenGraphChecks() Get all registered OpenGraph checks
  * @method static int count() Get the total number of registered checks
  * @method static CheckRegistry flush() Clear all registered checks
  * @method static array toArray() Convert all checks to array format
  *
- * @see \MarinSolutions\CheckybotLaravel\CheckRegistry
+ * @see CheckRegistry
  *
  * @example Uptime check
  * ```php

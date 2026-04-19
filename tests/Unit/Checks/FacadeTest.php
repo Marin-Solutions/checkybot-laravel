@@ -2,6 +2,8 @@
 
 use MarinSolutions\CheckybotLaravel\CheckRegistry;
 use MarinSolutions\CheckybotLaravel\Checks\ApiCheck;
+use MarinSolutions\CheckybotLaravel\Checks\LinkCheck;
+use MarinSolutions\CheckybotLaravel\Checks\OpenGraphCheck;
 use MarinSolutions\CheckybotLaravel\Checks\SslCheck;
 use MarinSolutions\CheckybotLaravel\Checks\UptimeCheck;
 use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
@@ -32,6 +34,20 @@ it('creates api check via facade', function () {
         ->and($check->getName())->toBe('health');
 });
 
+it('creates link check via facade', function () {
+    $check = Checkybot::links('homepage-links');
+
+    expect($check)->toBeInstanceOf(LinkCheck::class)
+        ->and($check->getName())->toBe('homepage-links');
+});
+
+it('creates open graph check via facade', function () {
+    $check = Checkybot::openGraph('homepage-og');
+
+    expect($check)->toBeInstanceOf(OpenGraphCheck::class)
+        ->and($check->getName())->toBe('homepage-og');
+});
+
 it('registers checks in the singleton registry', function () {
     Checkybot::uptime('homepage')
         ->url('https://example.com')
@@ -45,10 +61,20 @@ it('registers checks in the singleton registry', function () {
         ->url('https://example.com/api/health')
         ->everyMinute();
 
-    expect(Checkybot::count())->toBe(3)
+    Checkybot::links('homepage-links')
+        ->url('https://example.com')
+        ->daily();
+
+    Checkybot::openGraph('homepage-og')
+        ->url('https://example.com')
+        ->daily();
+
+    expect(Checkybot::count())->toBe(5)
         ->and(Checkybot::getUptimeChecks())->toHaveCount(1)
         ->and(Checkybot::getSslChecks())->toHaveCount(1)
-        ->and(Checkybot::getApiChecks())->toHaveCount(1);
+        ->and(Checkybot::getApiChecks())->toHaveCount(1)
+        ->and(Checkybot::getLinkChecks())->toHaveCount(1)
+        ->and(Checkybot::getOpenGraphChecks())->toHaveCount(1);
 });
 
 it('flushes all checks via facade', function () {

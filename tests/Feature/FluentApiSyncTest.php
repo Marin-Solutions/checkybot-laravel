@@ -4,6 +4,7 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
+use Illuminate\Support\Facades\Artisan;
 use MarinSolutions\CheckybotLaravel\CheckRegistry;
 use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
 use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
@@ -23,6 +24,8 @@ beforeEach(function () {
             'uptime' => [],
             'ssl' => [],
             'api' => [],
+            'dead_links' => [],
+            'open_graph' => [],
         ],
     ]);
 });
@@ -43,6 +46,8 @@ it('syncs checks defined via fluent api', function () {
                 'uptime_checks' => ['created' => 1, 'updated' => 0, 'deleted' => 0],
                 'ssl_checks' => ['created' => 1, 'updated' => 0, 'deleted' => 0],
                 'api_checks' => ['created' => 0, 'updated' => 0, 'deleted' => 0],
+                'link_checks' => ['created' => 0, 'updated' => 0, 'deleted' => 0],
+                'open_graph_checks' => ['created' => 0, 'updated' => 0, 'deleted' => 0],
             ],
         ])),
     ]);
@@ -75,12 +80,24 @@ it('shows dry run output for fluent api checks', function () {
         ->everyMinute()
         ->expect('status')->toEqual('healthy');
 
-    $this->artisan('checkybot:sync --dry-run')
-        ->expectsOutput('DRY RUN - No changes will be made')
-        ->expectsOutputToContain('homepage')
-        ->expectsOutputToContain('health')
-        ->expectsOutputToContain('Found 2 checks to sync')
-        ->assertExitCode(0);
+    Checkybot::links('homepage-links')
+        ->url('https://example.com')
+        ->daily();
+
+    Checkybot::openGraph('homepage-og')
+        ->url('https://example.com')
+        ->daily();
+
+    $exitCode = Artisan::call('checkybot:sync', ['--dry-run' => true]);
+    $output = Artisan::output();
+
+    expect($exitCode)->toBe(0)
+        ->and($output)->toContain('DRY RUN - No changes will be made')
+        ->and($output)->toContain('homepage')
+        ->and($output)->toContain('health')
+        ->and($output)->toContain('homepage-links')
+        ->and($output)->toContain('homepage-og')
+        ->and($output)->toContain('Found 4 checks to sync');
 });
 
 it('validates duplicate check names in fluent api', function () {
@@ -140,6 +157,17 @@ it('sends correct payload structure from fluent api', function () {
         ->withToken('secret')
         ->expect('status')->toEqual('healthy');
 
+    Checkybot::links('homepage-links')
+        ->url('https://example.com')
+        ->daily()
+        ->maxDepth(1)
+        ->exclude(['/admin/*']);
+
+    Checkybot::openGraph('homepage-og')
+        ->url('https://example.com')
+        ->daily()
+        ->requireTags(['og:title', 'og:image']);
+
     $mock = new MockHandler([
         function ($request) use (&$capturedPayload) {
             $capturedPayload = json_decode($request->getBody()->getContents(), true);
@@ -150,6 +178,8 @@ it('sends correct payload structure from fluent api', function () {
                     'uptime_checks' => ['created' => 1, 'updated' => 0, 'deleted' => 0],
                     'ssl_checks' => ['created' => 1, 'updated' => 0, 'deleted' => 0],
                     'api_checks' => ['created' => 1, 'updated' => 0, 'deleted' => 0],
+                    'link_checks' => ['created' => 1, 'updated' => 0, 'deleted' => 0],
+                    'open_graph_checks' => ['created' => 1, 'updated' => 0, 'deleted' => 0],
                 ],
             ]));
         },
@@ -175,7 +205,12 @@ it('sends correct payload structure from fluent api', function () {
         ->and($capturedPayload['ssl_checks'])->toHaveCount(1)
         ->and($capturedPayload['api_checks'])->toHaveCount(1)
         ->and($capturedPayload['api_checks'][0]['headers']['Authorization'])->toBe('Bearer secret')
-        ->and($capturedPayload['api_checks'][0]['assertions'])->toHaveCount(1);
+        ->and($capturedPayload['api_checks'][0]['assertions'])->toHaveCount(1)
+        ->and($capturedPayload['link_checks'])->toHaveCount(1)
+        ->and($capturedPayload['link_checks'][0]['max_depth'])->toBe(1)
+        ->and($capturedPayload['link_checks'][0]['exclude_paths'])->toBe(['/admin/*'])
+        ->and($capturedPayload['open_graph_checks'])->toHaveCount(1)
+        ->and($capturedPayload['open_graph_checks'][0]['required_tags'])->toBe(['og:title', 'og:image']);
 });
 
 it('falls back to config when no fluent checks defined', function () {
