@@ -40,7 +40,7 @@ class CheckybotClient
      */
     public function syncChecks(array $payload): array
     {
-        $url = "/api/v1/projects/{$this->projectId}/checks/sync";
+        $url = '/api/v1/checks/sync';
 
         try {
             $response = $this->client->post($url, [
@@ -64,7 +64,7 @@ class CheckybotClient
             $body = json_decode($response->getBody()->getContents(), true) ?? [];
 
             Log::info('Checkybot sync successful', [
-                'project_id' => $this->projectId,
+                'project_identifier' => $payload['project_identifier'] ?? $this->projectId,
                 'summary' => $body['summary'] ?? null,
             ]);
 
@@ -73,7 +73,7 @@ class CheckybotClient
             $errorMessage = $this->parseErrorMessage($e);
 
             Log::error('Checkybot sync failed', [
-                'project_id' => $this->projectId,
+                'project_identifier' => $payload['project_identifier'] ?? $this->projectId,
                 'error' => $errorMessage,
                 'status_code' => $e->getCode(),
             ]);

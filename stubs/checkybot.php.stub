@@ -36,8 +36,12 @@ Checkybot::ssl('main-certificate')
 // Monitor API endpoints with optional response validation
 
 // Checkybot::api('health-check')
-//     ->url(config('app.url') . '/api/health')
+//     ->path('/api/health')
+//     ->method('GET')
 //     ->everyFiveMinutes()
+//     ->expectedStatus(200)
+//     ->timeout(10)
+//     ->requireJsonPaths(['status'])
 //     ->expect('status')->toEqual('healthy')
 //     ->expect('database.connected')->toBeTrue();
 

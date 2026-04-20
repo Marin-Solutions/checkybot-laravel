@@ -199,18 +199,21 @@ it('sends correct payload structure from fluent api', function () {
 
     $this->artisan('checkybot:sync')->assertExitCode(0);
 
-    expect($capturedPayload['uptime_checks'])->toHaveCount(1)
-        ->and($capturedPayload['uptime_checks'][0]['name'])->toBe('homepage')
-        ->and($capturedPayload['uptime_checks'][0]['max_redirects'])->toBe(5)
-        ->and($capturedPayload['ssl_checks'])->toHaveCount(1)
-        ->and($capturedPayload['api_checks'])->toHaveCount(1)
-        ->and($capturedPayload['api_checks'][0]['headers']['Authorization'])->toBe('Bearer secret')
-        ->and($capturedPayload['api_checks'][0]['assertions'])->toHaveCount(1)
-        ->and($capturedPayload['link_checks'])->toHaveCount(1)
-        ->and($capturedPayload['link_checks'][0]['max_depth'])->toBe(1)
-        ->and($capturedPayload['link_checks'][0]['exclude_paths'])->toBe(['/admin/*'])
-        ->and($capturedPayload['open_graph_checks'])->toHaveCount(1)
-        ->and($capturedPayload['open_graph_checks'][0]['required_tags'])->toBe(['og:title', 'og:image']);
+    $checks = collect($capturedPayload['checks'])->keyBy('name');
+
+    expect($capturedPayload['project_identifier'])->toBe('1')
+        ->and($capturedPayload['checks'])->toHaveCount(5)
+        ->and($checks['homepage']['type'])->toBe('uptime')
+        ->and($checks['homepage']['max_redirects'])->toBe(5)
+        ->and($checks['main-ssl']['type'])->toBe('ssl')
+        ->and($checks['health']['type'])->toBe('api')
+        ->and($checks['health']['headers']['Authorization'])->toBe('Bearer secret')
+        ->and($checks['health']['assertions'])->toHaveCount(1)
+        ->and($checks['homepage-links']['type'])->toBe('links')
+        ->and($checks['homepage-links']['max_depth'])->toBe(1)
+        ->and($checks['homepage-links']['exclude_paths'])->toBe(['/admin/*'])
+        ->and($checks['homepage-og']['type'])->toBe('opengraph')
+        ->and($checks['homepage-og']['required_tags'])->toBe(['og:title', 'og:image']);
 });
 
 it('falls back to config when no fluent checks defined', function () {

@@ -436,3 +436,94 @@ it('validates all registry check fields across types', function () {
         ->and($result['errors'])->toContain("Check 'bad-ssl' is missing a URL")
         ->and($result['errors'])->toContain("Check 'bad-links' is missing an interval");
 });
+
+it('validates v1 config requires checkybot url and project identifier', function () {
+    $config = [
+        'api_key' => 'test-key',
+        'base_url' => null,
+        'project_identifier' => null,
+        'project_id' => null,
+        'checks' => [],
+    ];
+
+    $result = $this->validator->validate($config);
+
+    expect($result['valid'])->toBeFalse()
+        ->and($result['errors'])->toContain('CHECKYBOT_URL is not configured')
+        ->and($result['errors'])->toContain('CHECKYBOT_PROJECT_IDENTIFIER is not configured');
+});
+
+it('builds v1 sync payload with metadata and merged headers', function () {
+    $config = [
+        'api_key' => 'test-key',
+        'base_url' => 'https://checkybot.test',
+        'project_identifier' => 'marin-solutions/checkybot-laravel',
+        'environment' => 'production',
+        'default_headers' => [
+            'Accept' => 'application/json',
+            'Authorization' => 'Bearer default-token',
+        ],
+        'checks' => [
+            [
+                'type' => 'api',
+                'name' => 'scrappa-health',
+                'method' => 'POST',
+                'path' => '/api/health',
+                'interval' => '5m',
+                'headers' => [
+                    'Authorization' => 'Bearer per-check-token',
+                    'X-Scrappa-Key' => 'scrappa-secret',
+                ],
+                'expected_status' => 202,
+                'timeout' => 12,
+                'required_json_paths' => ['status', 'database.connected'],
+                'body_assertions' => [
+                    ['path' => 'status', 'operator' => 'equals', 'value' => 'healthy'],
+                ],
+            ],
+            [
+                'type' => 'ssl',
+                'name' => 'app-ssl',
+                'url' => 'https://example.com',
+                'interval' => '1d',
+            ],
+        ],
+    ];
+
+    $payload = $this->validator->buildSyncPayload($config);
+
+    expect($payload)->toMatchArray([
+        'project_identifier' => 'marin-solutions/checkybot-laravel',
+        'environment' => 'production',
+        'checks' => [
+            [
+                'type' => 'api',
+                'name' => 'scrappa-health',
+                'method' => 'POST',
+                'path' => '/api/health',
+                'interval' => '5m',
+                'headers' => [
+                    'Accept' => 'application/json',
+                    'Authorization' => 'Bearer per-check-token',
+                    'X-Scrappa-Key' => 'scrappa-secret',
+                ],
+                'expected_status' => 202,
+                'timeout' => 12,
+                'required_json_paths' => ['status', 'database.connected'],
+                'body_assertions' => [
+                    ['path' => 'status', 'operator' => 'equals', 'value' => 'healthy'],
+                ],
+            ],
+            [
+                'type' => 'ssl',
+                'name' => 'app-ssl',
+                'url' => 'https://example.com',
+                'interval' => '1d',
+                'headers' => [
+                    'Accept' => 'application/json',
+                    'Authorization' => 'Bearer default-token',
+                ],
+            ],
+        ],
+    ]);
+});

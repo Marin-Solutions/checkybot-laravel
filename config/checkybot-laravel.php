@@ -7,13 +7,43 @@ return [
     |--------------------------------------------------------------------------
     |
     | Configure your Checkybot instance URL and authentication credentials.
-    | You must create a project in Checkybot first and obtain the Project ID.
+    | The project identifier should be stable for this repository, such as
+    | "vendor/repository" or your production app slug.
     |
     */
 
     'api_key' => env('CHECKYBOT_API_KEY'),
+    'project_identifier' => env('CHECKYBOT_PROJECT_IDENTIFIER', env('CHECKYBOT_PROJECT_ID')),
     'project_id' => env('CHECKYBOT_PROJECT_ID'),
-    'base_url' => env('CHECKYBOT_URL', 'https://checkybot.com'),
+    'base_url' => env('CHECKYBOT_URL'),
+    'environment' => env('CHECKYBOT_ENVIRONMENT', env('APP_ENV', 'production')),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Check Definition Location
+    |--------------------------------------------------------------------------
+    |
+    | The package loads this file before syncing so deployments can keep fluent
+    | check definitions in source control.
+    |
+    */
+
+    'checks_path' => base_path('routes/checkybot.php'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Default Check Headers
+    |--------------------------------------------------------------------------
+    |
+    | These headers are merged into every check payload. Per-check headers win.
+    | Values are sent to Checkybot but redacted from command output.
+    |
+    */
+
+    'default_headers' => [
+        // 'Accept' => 'application/json',
+        // 'X-Monitoring-Key' => env('CHECKYBOT_MONITORING_KEY'),
+    ],
 
     /*
     |--------------------------------------------------------------------------
@@ -30,9 +60,9 @@ return [
     | Monitoring Checks
     |--------------------------------------------------------------------------
     |
-    | Define your monitoring checks below. Each check must have a unique name
-    | within its type (uptime, ssl, api, dead_links, open_graph). Names are
-    | used to identify checks during sync operations.
+    | Define your monitoring checks below. The v1 contract supports a flat array
+    | of checks with a "type" field. The legacy grouped arrays are still accepted.
+    | Names are used to identify checks during sync operations.
     |
     | Common intervals:
     |   - '1m', '5m', '10m', '15m', '30m'  (minutes)
@@ -42,6 +72,22 @@ return [
     */
 
     'checks' => [
+        // [
+        //     'type' => 'api',
+        //     'name' => 'health-check',
+        //     'method' => 'GET',
+        //     'path' => '/api/health',
+        //     'interval' => '5m',
+        //     'headers' => [
+        //         'X-Scrappa-Key' => env('SCRAPPA_HEALTH_KEY'),
+        //     ],
+        //     'expected_status' => 200,
+        //     'timeout' => 10,
+        //     'required_json_paths' => ['status'],
+        //     'body_assertions' => [
+        //         ['path' => 'status', 'operator' => 'equals', 'value' => 'ok'],
+        //     ],
+        // ],
 
         /*
         |--------------------------------------------------------------------------
