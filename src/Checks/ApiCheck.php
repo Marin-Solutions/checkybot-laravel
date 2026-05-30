@@ -35,6 +35,16 @@ namespace MarinSolutions\CheckybotLaravel\Checks;
 class ApiCheck extends BaseCheck
 {
     /**
+     * HTTP method to use for the request.
+     */
+    protected ?string $method = null;
+
+    /**
+     * Relative path to monitor when the Checkybot app should resolve the host.
+     */
+    protected ?string $path = null;
+
+    /**
      * HTTP headers to send with the request.
      *
      * @var array<string, string>
@@ -42,11 +52,117 @@ class ApiCheck extends BaseCheck
     protected array $headers = [];
 
     /**
+     * Expected HTTP response status.
+     */
+    protected ?int $expectedStatus = null;
+
+    /**
+     * Request timeout in seconds.
+     */
+    protected ?int $timeout = null;
+
+    /**
+     * JSON paths that must exist in the response.
+     *
+     * @var array<int, string>
+     */
+    protected array $requiredJsonPaths = [];
+
+    /**
+     * Body assertions for the response.
+     *
+     * @var array<int, array<string, mixed>>
+     */
+    protected array $bodyAssertions = [];
+
+    /**
      * Response assertions.
      *
      * @var array<int, array<string, mixed>>
      */
     protected array $assertions = [];
+
+    /**
+     * Set the HTTP method.
+     *
+     * @return $this
+     */
+    public function method(string $method): self
+    {
+        $this->method = strtoupper($method);
+
+        return $this;
+    }
+
+    /**
+     * Set a relative path instead of a full URL.
+     *
+     * @return $this
+     */
+    public function path(string $path): self
+    {
+        $this->path = $path;
+
+        return $this;
+    }
+
+    /**
+     * Get the configured relative path.
+     */
+    public function getPath(): ?string
+    {
+        return $this->path;
+    }
+
+    /**
+     * Set the expected HTTP status code.
+     *
+     * @return $this
+     */
+    public function expectedStatus(int $status): self
+    {
+        $this->expectedStatus = $status;
+
+        return $this;
+    }
+
+    /**
+     * Set the request timeout in seconds.
+     *
+     * @return $this
+     */
+    public function timeout(int $seconds): self
+    {
+        $this->timeout = $seconds;
+
+        return $this;
+    }
+
+    /**
+     * Require JSON paths to exist in the response.
+     *
+     * @param  array<int, string>  $paths
+     * @return $this
+     */
+    public function requireJsonPaths(array $paths): self
+    {
+        $this->requiredJsonPaths = $paths;
+
+        return $this;
+    }
+
+    /**
+     * Set body assertions for the response.
+     *
+     * @param  array<int, array<string, mixed>>  $assertions
+     * @return $this
+     */
+    public function bodyAssertions(array $assertions): self
+    {
+        $this->bodyAssertions = $assertions;
+
+        return $this;
+    }
 
     /**
      * Set HTTP headers to send with the request.
@@ -189,12 +305,40 @@ class ApiCheck extends BaseCheck
     {
         $data = [
             'name' => $this->name,
-            'url' => $this->url,
-            'interval' => $this->interval,
         ];
+
+        if (! empty($this->url)) {
+            $data['url'] = $this->url;
+        }
+
+        if ($this->path !== null) {
+            $data['path'] = $this->path;
+        }
+
+        if ($this->method !== null) {
+            $data['method'] = $this->method;
+        }
+
+        $data['interval'] = $this->interval;
 
         if (! empty($this->headers)) {
             $data['headers'] = $this->headers;
+        }
+
+        if ($this->expectedStatus !== null) {
+            $data['expected_status'] = $this->expectedStatus;
+        }
+
+        if ($this->timeout !== null) {
+            $data['timeout'] = $this->timeout;
+        }
+
+        if (! empty($this->requiredJsonPaths)) {
+            $data['required_json_paths'] = $this->requiredJsonPaths;
+        }
+
+        if (! empty($this->bodyAssertions)) {
+            $data['body_assertions'] = $this->bodyAssertions;
         }
 
         if (! empty($this->assertions)) {

@@ -393,7 +393,7 @@ it('sends authorization header with bearer token', function () {
     expect($authHeader)->toBe('Bearer my-secret-api-key');
 });
 
-it('sends request to correct url with project id', function () {
+it('sends request to v1 sync endpoint', function () {
     $requestUri = null;
 
     $mock = new MockHandler([
@@ -416,5 +416,5 @@ it('sends request to correct url with project id', function () {
 
     $client->syncChecks(['uptime_checks' => [], 'ssl_checks' => [], 'api_checks' => []]);
 
-    expect($requestUri)->toBe('/api/v1/projects/42/checks/sync');
+    expect($requestUri)->toBe('/api/v1/checks/sync');
 });

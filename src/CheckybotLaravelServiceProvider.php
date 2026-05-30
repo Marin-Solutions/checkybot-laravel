@@ -28,7 +28,7 @@ class CheckybotLaravelServiceProvider extends PackageServiceProvider
             return new CheckybotClient(
                 baseUrl: config('checkybot-laravel.base_url'),
                 apiKey: config('checkybot-laravel.api_key'),
-                projectId: config('checkybot-laravel.project_id'),
+                projectId: config('checkybot-laravel.project_identifier') ?: config('checkybot-laravel.project_id'),
                 timeout: config('checkybot-laravel.timeout'),
                 retryTimes: config('checkybot-laravel.retry_times'),
                 retryDelay: config('checkybot-laravel.retry_delay')
@@ -63,10 +63,10 @@ class CheckybotLaravelServiceProvider extends PackageServiceProvider
      */
     protected function loadCheckybotRoutes(): void
     {
-        $routesPath = base_path('routes/checkybot.php');
+        $routesPath = config('checkybot-laravel.checks_path', base_path('routes/checkybot.php'));
 
-        if (file_exists($routesPath)) {
-            require $routesPath;
+        if (is_string($routesPath) && file_exists($routesPath)) {
+            include_once $routesPath;
         }
     }
 }

@@ -4,9 +4,14 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
+
+beforeEach(function () {
+    config(['checkybot-laravel.base_url' => 'https://checkybot.test']);
+});
 
 it('fails when api_key is not configured', function () {
     config([
@@ -28,7 +33,7 @@ it('fails when project_id is not configured', function () {
 
     $this->artisan('checkybot:sync')
         ->expectsOutput('Configuration validation failed:')
-        ->expectsOutput('  - CHECKYBOT_PROJECT_ID is not configured')
+        ->expectsOutput('  - CHECKYBOT_PROJECT_IDENTIFIER is not configured')
         ->assertExitCode(1);
 });
 
@@ -379,8 +384,160 @@ it('fails when both api_key and project_id are missing', function () {
     $this->artisan('checkybot:sync')
         ->expectsOutput('Configuration validation failed:')
         ->expectsOutput('  - CHECKYBOT_API_KEY is not configured')
-        ->expectsOutput('  - CHECKYBOT_PROJECT_ID is not configured')
+        ->expectsOutput('  - CHECKYBOT_PROJECT_IDENTIFIER is not configured')
         ->assertExitCode(1);
+});
+
+it('fails when checkybot url is not configured', function () {
+    config([
+        'checkybot-laravel.api_key' => 'test-key',
+        'checkybot-laravel.project_identifier' => 'marin-solutions/checkybot-laravel',
+        'checkybot-laravel.base_url' => null,
+    ]);
+
+    $this->artisan('checkybot:sync')
+        ->expectsOutput('Configuration validation failed:')
+        ->expectsOutput('  - CHECKYBOT_URL is not configured')
+        ->assertExitCode(1);
+});
+
+it('posts v1 sync payload and displays deploy friendly output', function () {
+    config([
+        'checkybot-laravel.api_key' => 'test-key',
+        'checkybot-laravel.project_identifier' => 'marin-solutions/checkybot-laravel',
+        'checkybot-laravel.project_id' => null,
+        'checkybot-laravel.environment' => 'production',
+        'checkybot-laravel.base_url' => 'https://checkybot.test',
+        'checkybot-laravel.default_headers' => [
+            'Accept' => 'application/json',
+            'Authorization' => 'Bearer default-secret',
+        ],
+        'checkybot-laravel.checks' => [
+            [
+                'type' => 'api',
+                'name' => 'scrappa-health',
+                'method' => 'POST',
+                'path' => '/api/health',
+                'interval' => '5m',
+                'headers' => [
+                    'Authorization' => 'Bearer check-secret',
+                    'X-Scrappa-Key' => 'scrappa-secret',
+                ],
+                'expected_status' => 202,
+                'timeout' => 12,
+                'required_json_paths' => ['status'],
+                'body_assertions' => [
+                    ['path' => 'status', 'operator' => 'equals', 'value' => 'healthy'],
+                ],
+            ],
+        ],
+    ]);
+
+    $history = [];
+    $mock = new MockHandler([
+        new Response(200, [], json_encode([
+            'message' => 'Checks synced successfully',
+            'summary' => [
+                'checks' => ['created' => 1, 'updated' => 0, 'deleted' => 0],
+            ],
+        ])),
+    ]);
+
+    $handlerStack = HandlerStack::create($mock);
+    $handlerStack->push(Middleware::history($history));
+    $guzzle = new Client(['handler' => $handlerStack]);
+
+    $client = new CheckybotClient(
+        baseUrl: 'https://checkybot.test',
+        apiKey: 'test-key',
+        projectId: 'marin-solutions/checkybot-laravel',
+        client: $guzzle
+    );
+
+    $this->app->instance(CheckybotClient::class, $client);
+
+    $this->artisan('checkybot:sync')
+        ->expectsOutputToContain('Project: marin-solutions/checkybot-laravel')
+        ->expectsOutputToContain('Environment: production')
+        ->expectsOutputToContain('Endpoint: https://checkybot.test/api/v1/checks/sync')
+        ->expectsOutputToContain('Found 1 checks to sync')
+        ->expectsOutputToContain('Sync completed successfully')
+        ->assertExitCode(0);
+
+    $request = $history[0]['request'];
+    $payload = json_decode((string) $request->getBody(), true);
+
+    expect($request->getUri()->getPath())->toBe('/api/v1/checks/sync')
+        ->and($payload['project_identifier'])->toBe('marin-solutions/checkybot-laravel')
+        ->and($payload['environment'])->toBe('production')
+        ->and($payload['checks'][0]['headers'])->toBe([
+            'Accept' => 'application/json',
+            'Authorization' => 'Bearer check-secret',
+            'X-Scrappa-Key' => 'scrappa-secret',
+        ])
+        ->and($payload['checks'][0]['method'])->toBe('POST')
+        ->and($payload['checks'][0]['expected_status'])->toBe(202)
+        ->and($payload['checks'][0]['timeout'])->toBe(12);
+});
+
+it('redacts sensitive headers in dry run output', function () {
+    config([
+        'checkybot-laravel.api_key' => 'test-key',
+        'checkybot-laravel.project_identifier' => 'marin-solutions/checkybot-laravel',
+        'checkybot-laravel.project_id' => null,
+        'checkybot-laravel.default_headers' => [
+            'Accept' => 'application/json',
+            'Authorization' => 'Bearer default-secret',
+        ],
+        'checkybot-laravel.checks' => [
+            [
+                'type' => 'api',
+                'name' => 'scrappa-health',
+                'path' => '/api/health',
+                'interval' => '5m',
+                'headers' => [
+                    'X-Scrappa-Key' => 'scrappa-secret',
+                ],
+            ],
+        ],
+    ]);
+
+    $this->artisan('checkybot:sync --dry-run')
+        ->expectsOutputToContain('Authorization: [redacted]')
+        ->expectsOutputToContain('X-Scrappa-Key: [redacted]')
+        ->doesntExpectOutputToContain('default-secret')
+        ->doesntExpectOutputToContain('scrappa-secret')
+        ->assertExitCode(0);
+});
+
+it('loads fluent check definitions from configured location', function () {
+    $path = sys_get_temp_dir().'/checkybot-definitions-'.uniqid().'.php';
+
+    file_put_contents($path, <<<'PHP'
+<?php
+
+use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
+
+Checkybot::api('configured-health')
+    ->path('/api/health')
+    ->every('5m');
+PHP);
+
+    config([
+        'checkybot-laravel.api_key' => 'test-key',
+        'checkybot-laravel.project_identifier' => 'marin-solutions/checkybot-laravel',
+        'checkybot-laravel.project_id' => null,
+        'checkybot-laravel.checks_path' => $path,
+        'checkybot-laravel.checks' => [],
+    ]);
+
+    try {
+        $this->artisan('checkybot:sync --dry-run')
+            ->expectsOutputToContain('configured-health')
+            ->assertExitCode(0);
+    } finally {
+        @unlink($path);
+    }
 });
 
 it('syncs with all check types populated', function () {

@@ -19,7 +19,7 @@ it('publishes config file', function () {
 
     // Verify it contains expected keys
     $config = include $configPath;
-    expect($config)->toHaveKeys(['api_key', 'project_id', 'base_url', 'checks']);
+    expect($config)->toHaveKeys(['api_key', 'project_identifier', 'project_id', 'base_url', 'environment', 'checks_path', 'default_headers', 'checks']);
 
     // Clean up
     File::delete($configPath);
@@ -32,7 +32,9 @@ it('registers the sync command', function () {
 });
 
 it('loads config with correct default values', function () {
-    expect(config('checkybot-laravel.base_url'))->toBe('https://checkybot.com')
+    expect(config('checkybot-laravel.base_url'))->toBeNull()
+        ->and(config('checkybot-laravel.environment'))->toBe('production')
+        ->and(config('checkybot-laravel.default_headers'))->toBeArray()
         ->and(config('checkybot-laravel.timeout'))->toBe(30)
         ->and(config('checkybot-laravel.retry_times'))->toBe(3)
         ->and(config('checkybot-laravel.retry_delay'))->toBe(1000)
