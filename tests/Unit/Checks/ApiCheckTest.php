@@ -56,6 +56,28 @@ it('adds bearer token with withToken', function () {
     expect($array['headers']['Authorization'])->toBe('Bearer my-secret-token');
 });
 
+it('sets an expected response status', function () {
+    $check = (new ApiCheck('degraded-contract'))
+        ->expectStatus(503);
+
+    expect($check->toArray()['expected_status'])->toBe(503);
+});
+
+it('sets zero retries', function () {
+    $check = (new ApiCheck('degraded-contract'))
+        ->retries(0);
+
+    expect($check->toArray()['retry_count'])->toBe(0);
+});
+
+it('rejects an invalid expected response status', function () {
+    (new ApiCheck('invalid'))->expectStatus(99);
+})->throws(InvalidArgumentException::class);
+
+it('rejects an invalid retry count', function () {
+    (new ApiCheck('invalid'))->retries(11);
+})->throws(InvalidArgumentException::class);
+
 it('returns pending assertion from expect', function () {
     $check = new ApiCheck('health');
     $pending = $check->expect('status');

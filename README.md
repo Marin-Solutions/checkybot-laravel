@@ -240,6 +240,13 @@ Checkybot::api('endpoint')
     ->withHeader('Authorization', 'Bearer token')
     ->withHeader('Accept', 'application/json')
     ->everyFiveMinutes();
+
+// Expected non-2xx contract without repeated requests
+Checkybot::api('deprecated-contract')
+    ->url('https://example.com/api/deprecated')
+    ->expectStatus(503)
+    ->retries(0)
+    ->everyFiveMinutes();
 ```
 
 ### Response Assertions (Pest-style)

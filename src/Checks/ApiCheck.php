@@ -2,6 +2,8 @@
 
 namespace MarinSolutions\CheckybotLaravel\Checks;
 
+use InvalidArgumentException;
+
 /**
  * Fluent builder for API endpoint monitoring checks.
  *
@@ -40,6 +42,10 @@ class ApiCheck extends BaseCheck
      * @var array<string, string>
      */
     protected array $headers = [];
+
+    protected ?int $expectedStatus = null;
+
+    protected ?int $retryCount = null;
 
     /**
      * Response assertions.
@@ -112,6 +118,28 @@ class ApiCheck extends BaseCheck
     public function withToken(string $token): self
     {
         return $this->withHeader('Authorization', 'Bearer '.$token);
+    }
+
+    public function expectStatus(int $status): self
+    {
+        if ($status < 100 || $status > 599) {
+            throw new InvalidArgumentException('Expected status must be between 100 and 599.');
+        }
+
+        $this->expectedStatus = $status;
+
+        return $this;
+    }
+
+    public function retries(int $count): self
+    {
+        if ($count < 0 || $count > 10) {
+            throw new InvalidArgumentException('Retry count must be between 0 and 10.');
+        }
+
+        $this->retryCount = $count;
+
+        return $this;
     }
 
     /**
@@ -195,6 +223,14 @@ class ApiCheck extends BaseCheck
 
         if (! empty($this->headers)) {
             $data['headers'] = $this->headers;
+        }
+
+        if ($this->expectedStatus !== null) {
+            $data['expected_status'] = $this->expectedStatus;
+        }
+
+        if ($this->retryCount !== null) {
+            $data['retry_count'] = $this->retryCount;
         }
 
         if (! empty($this->assertions)) {
