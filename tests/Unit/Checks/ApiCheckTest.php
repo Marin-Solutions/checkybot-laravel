@@ -378,3 +378,29 @@ it('converts to array with all fields', function () {
         ->and($array['headers'])->toBe(['Authorization' => 'Bearer token'])
         ->and($array['assertions'])->toHaveCount(1);
 });
+
+it('supports v1 endpoint contract fields', function () {
+    $check = (new ApiCheck('health'))
+        ->method('POST')
+        ->path('/api/health')
+        ->every('5m')
+        ->expectedStatus(202)
+        ->timeout(12)
+        ->requireJsonPaths(['status', 'database.connected'])
+        ->bodyAssertions([
+            ['path' => 'status', 'operator' => 'equals', 'value' => 'healthy'],
+        ]);
+
+    expect($check->toArray())->toMatchArray([
+        'name' => 'health',
+        'method' => 'POST',
+        'path' => '/api/health',
+        'interval' => '5m',
+        'expected_status' => 202,
+        'timeout' => 12,
+        'required_json_paths' => ['status', 'database.connected'],
+        'body_assertions' => [
+            ['path' => 'status', 'operator' => 'equals', 'value' => 'healthy'],
+        ],
+    ]);
+});

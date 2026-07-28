@@ -5,8 +5,12 @@ it('has required config keys', function () {
 
     expect($config)->toHaveKeys([
         'api_key',
+        'project_identifier',
         'project_id',
         'base_url',
+        'environment',
+        'checks_path',
+        'default_headers',
         'timeout',
         'retry_times',
         'retry_delay',
@@ -17,7 +21,9 @@ it('has required config keys', function () {
 it('has default values for optional settings', function () {
     $config = include __DIR__.'/../../config/checkybot-laravel.php';
 
-    expect($config['base_url'])->toBe('https://checkybot.com')
+    expect($config['base_url'])->toBeNull()
+        ->and($config['environment'])->toBe('production')
+        ->and($config['default_headers'])->toBeArray()
         ->and($config['timeout'])->toBe(30)
         ->and($config['retry_times'])->toBe(3)
         ->and($config['retry_delay'])->toBe(1000);

@@ -20,9 +20,10 @@ php artisan vendor:publish --tag="checkybot-routes"
 # 3. Publish the config (for API credentials)
 php artisan vendor:publish --tag="checkybot-laravel-config"
 
-# 4. Add credentials to .env
+# 4. Add deployment credentials to .env
+echo "CHECKYBOT_URL=https://checkybot.example.com" >> .env
 echo "CHECKYBOT_API_KEY=your-api-key" >> .env
-echo "CHECKYBOT_PROJECT_ID=1" >> .env
+echo "CHECKYBOT_PROJECT_IDENTIFIER=marin-solutions/example-app" >> .env
 
 # 5. Define your checks in routes/checkybot.php (see examples below)
 
@@ -61,15 +62,19 @@ Add to your `.env` file:
 
 ```env
 CHECKYBOT_API_KEY=your-api-key
-CHECKYBOT_PROJECT_ID=1
-CHECKYBOT_URL=https://checkybot.com
+CHECKYBOT_PROJECT_IDENTIFIER=marin-solutions/example-app
+CHECKYBOT_URL=https://checkybot.example.com
+CHECKYBOT_ENVIRONMENT=production
 ```
 
 | Variable | Description |
 |----------|-------------|
-| `CHECKYBOT_API_KEY` | Your Checkybot API key (found in account settings) |
-| `CHECKYBOT_PROJECT_ID` | The project ID to sync checks to |
-| `CHECKYBOT_URL` | Checkybot instance URL (default: `https://checkybot.com`) |
+| `CHECKYBOT_URL` | Checkybot instance URL that receives sync payloads |
+| `CHECKYBOT_API_KEY` | Your Checkybot API key |
+| `CHECKYBOT_PROJECT_IDENTIFIER` | Stable repository or app identifier, for example `marin-solutions/example-app` |
+| `CHECKYBOT_ENVIRONMENT` | Deployment environment sent with the payload, defaulting to `APP_ENV` |
+
+`CHECKYBOT_PROJECT_ID` remains supported as a legacy alias, but new installs should use `CHECKYBOT_PROJECT_IDENTIFIER`.
 
 ### Step 5: Verify Installation
 
@@ -103,12 +108,83 @@ Checkybot::ssl('main-certificate')
 
 // API Checks with Assertions (Pest-style!)
 Checkybot::api('health-check')
-    ->url(config('app.url') . '/api/health')
+    ->path('/api/health')
+    ->method('GET')
     ->everyFiveMinutes()
+    ->expectedStatus(200)
+    ->timeout(10)
     ->withToken(config('services.monitoring.token'))
+    ->requireJsonPaths(['status', 'database.connected'])
     ->expect('status')->toEqual('healthy')
     ->expect('database.connected')->toBeTrue()
     ->expect('queue.size')->toBeLessThan(1000);
+```
+
+## Config-Driven V1 Contract
+
+You can also define checks directly in `config/checkybot-laravel.php`. The v1 sync payload uses a flat `checks` array with a `type` field. Supported type values are `api`, `uptime`, `ssl`, `links`, and `opengraph`.
+
+```php
+'default_headers' => [
+    'Accept' => 'application/json',
+],
+
+'checks' => [
+    [
+        'type' => 'api',
+        'name' => 'scrappa-health',
+        'method' => 'GET',
+        'path' => '/api/health',
+        'interval' => '5m',
+        'headers' => [
+            'X-Scrappa-Key' => env('SCRAPPA_HEALTH_KEY'),
+        ],
+        'expected_status' => 200,
+        'timeout' => 10,
+        'required_json_paths' => ['status', 'database.connected'],
+        'body_assertions' => [
+            ['path' => 'status', 'operator' => 'equals', 'value' => 'healthy'],
+        ],
+    ],
+    [
+        'type' => 'ssl',
+        'name' => 'app-ssl',
+        'url' => env('APP_URL'),
+        'interval' => '1d',
+    ],
+],
+```
+
+Default headers are merged into each check. Per-check headers override defaults. Sensitive header values are sent in the payload but redacted from console output.
+
+## Main App Payload
+
+`php artisan checkybot:sync` posts this shape to `POST {CHECKYBOT_URL}/api/v1/checks/sync` with `Authorization: Bearer {CHECKYBOT_API_KEY}`:
+
+```json
+{
+  "project_identifier": "marin-solutions/example-app",
+  "environment": "production",
+  "checks": [
+    {
+      "type": "api",
+      "name": "scrappa-health",
+      "method": "GET",
+      "path": "/api/health",
+      "interval": "5m",
+      "headers": {
+        "Accept": "application/json",
+        "X-Scrappa-Key": "secret-value"
+      },
+      "expected_status": 200,
+      "timeout": 10,
+      "required_json_paths": ["status"],
+      "body_assertions": [
+        {"path": "status", "operator": "equals", "value": "healthy"}
+      ]
+    }
+  ]
+}
 ```
 
 ## Uptime Checks
@@ -440,8 +516,9 @@ jobs:
       - name: Sync Checkybot Monitors
         run: php artisan checkybot:sync
         env:
+          CHECKYBOT_URL: ${{ secrets.CHECKYBOT_URL }}
           CHECKYBOT_API_KEY: ${{ secrets.CHECKYBOT_API_KEY }}
-          CHECKYBOT_PROJECT_ID: ${{ secrets.CHECKYBOT_PROJECT_ID }}
+          CHECKYBOT_PROJECT_IDENTIFIER: marin-solutions/example-app
 ```
 
 ### GitLab CI
@@ -453,15 +530,16 @@ deploy:
     - # your deployment steps
     - php artisan checkybot:sync
   variables:
+    CHECKYBOT_URL: $CHECKYBOT_URL
     CHECKYBOT_API_KEY: $CHECKYBOT_API_KEY
-    CHECKYBOT_PROJECT_ID: $CHECKYBOT_PROJECT_ID
+    CHECKYBOT_PROJECT_IDENTIFIER: marin-solutions/example-app
 ```
 
 ### Laravel Forge (Post-Deployment Script)
 
 ```bash
 cd /home/forge/example.com
-php artisan checkybot:sync
+CHECKYBOT_URL="https://checkybot.example.com" CHECKYBOT_API_KEY="$CHECKYBOT_API_KEY" php artisan checkybot:sync
 ```
 
 ### Laravel Envoyer (Deployment Hook)
@@ -470,7 +548,7 @@ Add as an "After" hook on the "Activate New Release" step:
 
 ```bash
 cd {{ release }}
-php artisan checkybot:sync
+CHECKYBOT_URL="https://checkybot.example.com" CHECKYBOT_API_KEY="$CHECKYBOT_API_KEY" php artisan checkybot:sync
 ```
 
 ## Commands

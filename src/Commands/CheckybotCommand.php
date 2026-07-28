@@ -20,6 +20,7 @@ class CheckybotCommand extends Command
         $this->info('Checkybot Sync Starting...');
 
         $config = config('checkybot-laravel');
+        $this->loadConfiguredDefinitions($registry);
 
         // Use registry if checks are defined there, otherwise fall back to config
         $useRegistry = $registry->count() > 0;
@@ -40,16 +41,13 @@ class CheckybotCommand extends Command
         }
 
         // Get payload from registry or config
-        $payload = $useRegistry
-            ? $registry->toArray()
-            : $validator->transformPayload($config);
+        $payload = $validator->buildSyncPayload($config, $useRegistry ? $registry : null);
+        $totalChecks = count($payload['checks']);
+        $endpoint = $this->syncEndpoint((string) $config['base_url']);
 
-        $totalChecks = count($payload['uptime_checks'])
-            + count($payload['ssl_checks'])
-            + count($payload['api_checks'])
-            + count($payload['link_checks'])
-            + count($payload['open_graph_checks']);
-
+        $this->line('Project: '.$payload['project_identifier']);
+        $this->line('Environment: '.$payload['environment']);
+        $this->line('Endpoint: '.$endpoint);
         $this->comment("Found {$totalChecks} checks to sync");
 
         if ($this->option('dry-run')) {
@@ -76,7 +74,7 @@ class CheckybotCommand extends Command
     }
 
     /**
-     * @param  array<string, array<int, array<string, mixed>>>  $payload
+     * @param  array{checks: array<int, array<string, mixed>>}  $payload
      */
     protected function displayDryRun(array $payload): void
     {
@@ -84,14 +82,23 @@ class CheckybotCommand extends Command
         $this->comment('DRY RUN - No changes will be made');
         $this->line('');
 
-        foreach (['uptime_checks', 'ssl_checks', 'api_checks', 'link_checks', 'open_graph_checks'] as $type) {
-            if (! empty($payload[$type])) {
-                $this->info($this->labelForType($type).':');
-                foreach ($payload[$type] as $check) {
-                    $this->line("  - {$check['name']} ({$check['url']}) every {$check['interval']}");
+        $checksByType = collect($payload['checks'])->groupBy('type');
+
+        foreach ($checksByType as $type => $checks) {
+            $this->info($this->labelForType((string) $type).':');
+
+            foreach ($checks as $check) {
+                $target = $check['url'] ?? $check['path'] ?? '';
+                $this->line("  - {$check['name']} ({$target}) every {$check['interval']}");
+
+                if (! empty($check['headers']) && is_array($check['headers'])) {
+                    foreach ($this->redactedHeaders($check['headers']) as $name => $value) {
+                        $this->line("      {$name}: {$value}");
+                    }
                 }
-                $this->line('');
             }
+
+            $this->line('');
         }
     }
 
@@ -116,9 +123,57 @@ class CheckybotCommand extends Command
     protected function labelForType(string $type): string
     {
         return match ($type) {
+            'api' => 'Api Checks',
+            'ssl' => 'Ssl Checks',
+            'uptime' => 'Uptime Checks',
+            'links' => 'Link Checks',
+            'opengraph' => 'OpenGraph Checks',
             'link_checks' => 'Link Checks',
             'open_graph_checks' => 'OpenGraph Checks',
             default => ucwords(str_replace('_', ' ', $type)),
         };
+    }
+
+    protected function syncEndpoint(string $baseUrl): string
+    {
+        return rtrim($baseUrl, '/').'/api/v1/checks/sync';
+    }
+
+    protected function loadConfiguredDefinitions(CheckRegistry $registry): void
+    {
+        if ($registry->count() > 0) {
+            return;
+        }
+
+        $path = config('checkybot-laravel.checks_path');
+
+        if (is_string($path) && file_exists($path)) {
+            include_once $path;
+        }
+    }
+
+    /**
+     * @param  array<string, string>  $headers
+     * @return array<string, string>
+     */
+    protected function redactedHeaders(array $headers): array
+    {
+        $redacted = [];
+
+        foreach ($headers as $name => $value) {
+            $redacted[$name] = $this->isSensitiveHeader((string) $name) ? '[redacted]' : $value;
+        }
+
+        return $redacted;
+    }
+
+    protected function isSensitiveHeader(string $name): bool
+    {
+        $name = strtolower($name);
+
+        return str_contains($name, 'authorization')
+            || str_contains($name, 'token')
+            || str_contains($name, 'key')
+            || str_contains($name, 'secret');
     }
 }
