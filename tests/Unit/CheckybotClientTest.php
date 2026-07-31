@@ -4,8 +4,10 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
+use Illuminate\Support\Facades\Log;
 use MarinSolutions\CheckybotLaravel\Exceptions\CheckybotSyncException;
 use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
 
@@ -278,6 +280,203 @@ it('handles 404 not found error', function () {
 
     $client->syncChecks(['uptime_checks' => [], 'ssl_checks' => [], 'api_checks' => []]);
 })->throws(CheckybotSyncException::class);
+
+it('sends an authenticated component status request with the exact bounded payload', function () {
+    $history = [];
+    $mock = new MockHandler([
+        new Response(200, [], json_encode(['status' => 'accepted'])),
+    ]);
+    $handlerStack = HandlerStack::create($mock);
+    $handlerStack->push(Middleware::history($history));
+
+    $client = new CheckybotClient(
+        baseUrl: 'https://checkybot.example',
+        apiKey: 'component-secret',
+        projectId: '42',
+        client: new Client(['handler' => $handlerStack])
+    );
+
+    $result = $client->reportComponentStatus(
+        componentKey: 'serp-data-lake',
+        status: 'warning',
+        observedAt: new DateTimeImmutable('2026-07-31T14:34:56+02:00'),
+        message: 'Refresh backlog is above the warning threshold.',
+        metrics: ['due' => 12, 'coverage_percent' => 98.5]
+    );
+
+    $request = $history[0]['request'];
+
+    expect($result['status'])->toBe('accepted')
+        ->and($request->getMethod())->toBe('POST')
+        ->and((string) $request->getUri())->toBe('/api/v1/projects/42/components/serp-data-lake/status')
+        ->and($request->getHeaderLine('Accept'))->toBe('application/json')
+        ->and($request->getHeaderLine('Authorization'))->toBe('Bearer component-secret')
+        ->and(json_decode((string) $request->getBody(), true))->toBe([
+            'status' => 'warning',
+            'observed_at' => '2026-07-31T12:34:56+00:00',
+            'message' => 'Refresh backlog is above the warning threshold.',
+            'metrics' => ['due' => 12, 'coverage_percent' => 98.5],
+        ]);
+});
+
+it('accepts each supported component status value', function (string $status) {
+    $history = [];
+    $mock = new MockHandler([new Response(200, [], '{}')]);
+    $handlerStack = HandlerStack::create($mock);
+    $handlerStack->push(Middleware::history($history));
+
+    $client = new CheckybotClient(
+        baseUrl: 'https://checkybot.example',
+        apiKey: 'test-key',
+        projectId: '1',
+        client: new Client(['handler' => $handlerStack])
+    );
+
+    $client->reportComponentStatus('queue', $status, '2026-07-31T12:34:56Z', 'Status reported.', []);
+
+    expect(json_decode((string) $history[0]['request']->getBody(), true)['status'])->toBe($status);
+})->with(['healthy', 'warning', 'failure']);
+
+it('normalizes DateTime values and accepts RFC3339 strings', function () {
+    $history = [];
+    $mock = new MockHandler([
+        new Response(200, [], '{}'),
+        new Response(200, [], '{}'),
+    ]);
+    $handlerStack = HandlerStack::create($mock);
+    $handlerStack->push(Middleware::history($history));
+
+    $client = new CheckybotClient(
+        baseUrl: 'https://checkybot.example',
+        apiKey: 'test-key',
+        projectId: '1',
+        client: new Client(['handler' => $handlerStack])
+    );
+
+    $client->reportComponentStatus('queue', 'healthy', new DateTimeImmutable('2026-07-31T14:34:56+02:00'), 'OK.', []);
+    $client->reportComponentStatus('queue', 'healthy', '2026-07-31T14:34:56.123Z', 'OK.', []);
+
+    expect(json_decode((string) $history[0]['request']->getBody(), true)['observed_at'])->toBe('2026-07-31T12:34:56+00:00')
+        ->and(json_decode((string) $history[1]['request']->getBody(), true)['observed_at'])->toBe('2026-07-31T14:34:56+00:00');
+});
+
+it('rejects invalid component status input before making a request', function () {
+    $client = new CheckybotClient(
+        baseUrl: 'https://checkybot.example',
+        apiKey: 'test-key',
+        projectId: '1',
+        client: new Client(['handler' => HandlerStack::create(new MockHandler)])
+    );
+
+    expect(fn () => $client->reportComponentStatus('queue', 'danger', '2026-07-31T12:34:56Z', 'Status.', []))
+        ->toThrow(InvalidArgumentException::class);
+    expect(fn () => $client->reportComponentStatus('queue/key', 'healthy', '2026-07-31T12:34:56Z', 'Status.', []))
+        ->toThrow(InvalidArgumentException::class);
+    expect(fn () => $client->reportComponentStatus(str_repeat('a', 65), 'healthy', '2026-07-31T12:34:56Z', 'Status.', []))
+        ->toThrow(InvalidArgumentException::class);
+    expect(fn () => $client->reportComponentStatus('queue', 'healthy', '2026-07-31 12:34:56', 'Status.', []))
+        ->toThrow(InvalidArgumentException::class);
+    expect(fn () => $client->reportComponentStatus('queue', 'healthy', '2026-07-31T12:34:56Z', "line\nbreak", []))
+        ->toThrow(InvalidArgumentException::class);
+    expect(fn () => $client->reportComponentStatus('queue', 'healthy', '2026-07-31T12:34:56Z', str_repeat('a', 501), []))
+        ->toThrow(InvalidArgumentException::class);
+});
+
+it('rejects unallowlisted, untyped, and out-of-bounds metrics before sending', function () {
+    $client = new CheckybotClient(
+        baseUrl: 'https://checkybot.example',
+        apiKey: 'test-key',
+        projectId: '1',
+        client: new Client(['handler' => HandlerStack::create(new MockHandler)])
+    );
+
+    foreach ([
+        ['not_allowed' => 1],
+        ['due' => '12'],
+        ['due' => -1],
+        ['due' => 1_000_000_001],
+        ['due' => NAN],
+        array_fill_keys(range(1, 21), 1),
+    ] as $metrics) {
+        expect(fn () => $client->reportComponentStatus('queue', 'healthy', '2026-07-31T12:34:56Z', 'Status.', $metrics))
+            ->toThrow(InvalidArgumentException::class);
+    }
+});
+
+it('retries transient component status failures using configured retry settings', function () {
+    $history = [];
+    $mock = new MockHandler([
+        new Response(503, [], json_encode(['message' => 'Temporarily unavailable.'])),
+        new Response(200, [], json_encode(['status' => 'accepted'])),
+    ]);
+    $handlerStack = HandlerStack::create($mock);
+    $handlerStack->push(Middleware::history($history));
+
+    $client = new CheckybotClient(
+        baseUrl: 'https://checkybot.example',
+        apiKey: 'test-key',
+        projectId: '1',
+        retryTimes: 1,
+        retryDelay: 0,
+        client: new Client(['handler' => $handlerStack])
+    );
+
+    expect($client->reportComponentStatus('queue', 'healthy', '2026-07-31T12:34:56Z', 'Status.', []))
+        ->toBe(['status' => 'accepted'])
+        ->and($history)->toHaveCount(2);
+});
+
+it('throws CheckybotSyncException for component status HTTP failures', function () {
+    $mock = new MockHandler([
+        new Response(422, [], json_encode([
+            'message' => 'The component was not declared.',
+        ])),
+    ]);
+    $client = new CheckybotClient(
+        baseUrl: 'https://checkybot.example',
+        apiKey: 'test-key',
+        projectId: '1',
+        retryDelay: 0,
+        client: new Client(['handler' => HandlerStack::create($mock)])
+    );
+
+    expect(fn () => $client->reportComponentStatus('queue', 'healthy', '2026-07-31T12:34:56Z', 'Status.', []))
+        ->toThrow(CheckybotSyncException::class);
+});
+
+it('does not write bearer tokens or raw metrics to status failure logs', function () {
+    Log::spy();
+
+    $token = 'super-secret-component-token';
+    $mock = new MockHandler([
+        new Response(500, [], json_encode([
+            'message' => "Server rejected {$token} with metrics: ".str_repeat('raw=', 200),
+        ])),
+    ]);
+    $client = new CheckybotClient(
+        baseUrl: 'https://checkybot.example',
+        apiKey: $token,
+        projectId: '1',
+        retryTimes: 0,
+        retryDelay: 0,
+        client: new Client(['handler' => HandlerStack::create($mock)])
+    );
+
+    try {
+        $client->reportComponentStatus('queue', 'failure', '2026-07-31T12:34:56Z', 'Failed.', ['failed' => 1]);
+        $this->fail('Expected CheckybotSyncException was not thrown');
+    } catch (CheckybotSyncException $exception) {
+        expect($exception->getMessage())
+            ->not->toContain($token)
+            ->and($exception->getMessage())->not->toContain('raw=');
+    }
+
+    Log::shouldHaveReceived('error')->withArgs(function (string $message, array $context) use ($token): bool {
+        return ! str_contains($message, $token)
+            && ! str_contains(json_encode($context), $token)
+            && ! str_contains(json_encode($context), 'raw=');
+    })->once();
+});
 
 it('handles rate limit 429 error', function () {
     $mock = new MockHandler([

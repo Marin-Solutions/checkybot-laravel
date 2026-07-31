@@ -77,6 +77,55 @@ CHECKYBOT_URL=https://checkybot.com
 php artisan checkybot:sync --dry-run
 ```
 
+## Runtime Component Status Reporting (v0.2.0)
+
+Install the supported client with:
+
+```bash
+composer require marin-solutions/checkybot-laravel:^0.2.0
+```
+
+After a component has been declared and synced, report its runtime status through the configured `CheckybotClient`:
+
+```php
+use DateTimeImmutable;
+use DateTimeZone;
+use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
+
+/** @var CheckybotClient $checkybot */
+$checkybot = app(CheckybotClient::class);
+
+$checkybot->reportComponentStatus(
+    componentKey: 'serp-data-lake',
+    status: 'warning', // healthy, warning, or failure
+    observedAt: new DateTimeImmutable('now', new DateTimeZone('UTC')),
+    message: 'Refresh backlog is above the warning threshold.',
+    metrics: [
+        'due' => 12,
+        'coverage_percent' => 98.5,
+    ],
+);
+```
+
+This method calls `POST /api/v1/projects/{projectId}/components/{componentKey}/status` with the configured base URL, project ID, timeout, Bearer API key, and retry settings. The Checkybot application must support this endpoint before consumers upgrade.
+
+The authenticated JSON body contains only:
+
+```json
+{
+  "status": "healthy|warning|failure",
+  "observed_at": "2026-07-31T12:34:56+00:00",
+  "message": "A short safe status message.",
+  "metrics": {"due": 12}
+}
+```
+
+`observed_at` is normalized to RFC3339 UTC. Component keys must be 1–64 characters matching `[A-Za-z0-9][A-Za-z0-9._-]*`. Messages are limited to 500 bytes and cannot contain control characters. Metrics are limited to 20 values, must use the allowlisted keys `active`, `configured_pairs`, `count`, `coverage_percent`, `due`, `duration_ms`, `error_count`, `failed`, `failure_count`, `failure_streak`, `healthy`, `latency_ms`, `missing_pairs`, `oldest_overdue_age_minutes`, `overdue`, `stale_claims`, `success_count`, `total`, `unique_keywords`, or `warning`, and each value must be a non-negative integer, finite number, or boolean no greater than 1,000,000,000.
+
+The server maps `failure` to Checkybot's `danger` state and persists the observation against the already-declared component. Declaration sync remains separate and continues to reject runtime status, message, timestamp, and metric fields.
+
+Upgrade guidance: deploy the compatible Checkybot application endpoint and migration first (server commit `0ee9aa61a6ec2ddcd4396b0d40ce9752db53110e`), then change the consumer requirement to `^0.2.0`. Do not add status fields to `php artisan checkybot:sync`; call `reportComponentStatus` separately from application runtime code.
+
 ## Defining Checks (Fluent API)
 
 Define your checks in `routes/checkybot.php` using the expressive fluent API:
