@@ -2,6 +2,15 @@
 
 All notable changes to `checkybot-laravel` will be documented in this file.
 
+## v0.2.1 - 2026-07-31
+
+Hardens runtime component status reporting for retries and clock skew.
+
+- Sends a stable `Idempotency-Key` per report and reuses it across configured retries; callers may provide a key for safe manual retries.
+- Documents and tests the server's 120-second future timestamp tolerance.
+- Keeps declaration sync and the v0.2.0 request body unchanged.
+- The compatible Checkybot server hardening is commit `1e43daf3334cef0e49dd409b317a650bb74d9984` in `marin-solutions/checkybot`.
+
 ## v0.2.0 - 2026-07-31
 
 Adds the supported runtime component status contract for already-declared aggregate components.

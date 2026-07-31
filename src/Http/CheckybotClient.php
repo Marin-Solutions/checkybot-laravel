@@ -17,6 +17,8 @@ class CheckybotClient
 {
     private const COMPONENT_KEY_PATTERN = '/\A[A-Za-z0-9][A-Za-z0-9._-]{0,63}\z/';
 
+    private const IDEMPOTENCY_KEY_PATTERN = '/\A[a-f0-9]{64}\z/i';
+
     private const MAX_MESSAGE_LENGTH = 500;
 
     private const MAX_METRICS = 20;
@@ -137,13 +139,15 @@ class CheckybotClient
         string $status,
         DateTimeInterface|string $observedAt,
         string $message,
-        array $metrics
+        array $metrics,
+        ?string $idempotencyKey = null
     ): array {
         $this->validateComponentKey($componentKey);
         $this->validateStatus($status);
         $observedAt = $this->normalizeObservedAt($observedAt);
         $this->validateMessage($message);
         $this->validateMetrics($metrics);
+        $idempotencyKey = $this->normalizeIdempotencyKey($idempotencyKey);
 
         $url = "/api/v1/projects/{$this->projectId}/components/".rawurlencode($componentKey).'/status';
         $payload = [
@@ -154,7 +158,7 @@ class CheckybotClient
         ];
 
         try {
-            $response = $this->postComponentStatus($url, $payload);
+            $response = $this->postComponentStatus($url, $payload, $idempotencyKey);
             $statusCode = $response->getStatusCode();
             $body = $this->decodeResponseBody($response);
 
@@ -207,6 +211,17 @@ class CheckybotClient
         if (! in_array($status, ['healthy', 'warning', 'failure'], true)) {
             throw new InvalidArgumentException('Component status must be healthy, warning, or failure.');
         }
+    }
+
+    private function normalizeIdempotencyKey(?string $idempotencyKey): string
+    {
+        $idempotencyKey ??= bin2hex(random_bytes(32));
+
+        if (preg_match(self::IDEMPOTENCY_KEY_PATTERN, $idempotencyKey) !== 1) {
+            throw new InvalidArgumentException('Idempotency key must be exactly 64 hexadecimal characters.');
+        }
+
+        return strtolower($idempotencyKey);
     }
 
     private function normalizeObservedAt(DateTimeInterface|string $observedAt): string
@@ -276,7 +291,7 @@ class CheckybotClient
     /**
      * @param  array<string, mixed>  $payload
      */
-    private function postComponentStatus(string $url, array $payload): ResponseInterface
+    private function postComponentStatus(string $url, array $payload, string $idempotencyKey): ResponseInterface
     {
         $maxRetries = max(0, $this->retryTimes);
 
@@ -287,6 +302,7 @@ class CheckybotClient
                     'headers' => [
                         'Accept' => 'application/json',
                         'Authorization' => 'Bearer '.$this->apiKey,
+                        'Idempotency-Key' => $idempotencyKey,
                     ],
                 ]);
             } catch (GuzzleException $exception) {

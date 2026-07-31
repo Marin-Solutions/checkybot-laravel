@@ -301,7 +301,8 @@ it('sends an authenticated component status request with the exact bounded paylo
         status: 'warning',
         observedAt: new DateTimeImmutable('2026-07-31T14:34:56+02:00'),
         message: 'Refresh backlog is above the warning threshold.',
-        metrics: ['due' => 12, 'coverage_percent' => 98.5]
+        metrics: ['due' => 12, 'coverage_percent' => 98.5],
+        idempotencyKey: str_repeat('a', 64),
     );
 
     $request = $history[0]['request'];
@@ -311,6 +312,7 @@ it('sends an authenticated component status request with the exact bounded paylo
         ->and((string) $request->getUri())->toBe('/api/v1/projects/42/components/serp-data-lake/status')
         ->and($request->getHeaderLine('Accept'))->toBe('application/json')
         ->and($request->getHeaderLine('Authorization'))->toBe('Bearer component-secret')
+        ->and($request->getHeaderLine('Idempotency-Key'))->toBe(str_repeat('a', 64))
         ->and(json_decode((string) $request->getBody(), true))->toBe([
             'status' => 'warning',
             'observed_at' => '2026-07-31T12:34:56+00:00',
@@ -380,6 +382,8 @@ it('rejects invalid component status input before making a request', function ()
         ->toThrow(InvalidArgumentException::class);
     expect(fn () => $client->reportComponentStatus('queue', 'healthy', '2026-07-31T12:34:56Z', str_repeat('a', 501), []))
         ->toThrow(InvalidArgumentException::class);
+    expect(fn () => $client->reportComponentStatus('queue', 'healthy', '2026-07-31T12:34:56Z', 'Status.', [], 'not-a-key'))
+        ->toThrow(InvalidArgumentException::class);
 });
 
 it('rejects unallowlisted, untyped, and out-of-bounds metrics before sending', function () {
@@ -421,9 +425,11 @@ it('retries transient component status failures using configured retry settings'
         client: new Client(['handler' => $handlerStack])
     );
 
-    expect($client->reportComponentStatus('queue', 'healthy', '2026-07-31T12:34:56Z', 'Status.', []))
+    expect($client->reportComponentStatus('queue', 'healthy', '2026-07-31T12:34:56Z', 'Status.', [], str_repeat('b', 64)))
         ->toBe(['status' => 'accepted'])
-        ->and($history)->toHaveCount(2);
+        ->and($history)->toHaveCount(2)
+        ->and($history[0]['request']->getHeaderLine('Idempotency-Key'))
+        ->toBe($history[1]['request']->getHeaderLine('Idempotency-Key'));
 });
 
 it('throws CheckybotSyncException for component status HTTP failures', function () {

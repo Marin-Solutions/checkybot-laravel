@@ -77,12 +77,12 @@ CHECKYBOT_URL=https://checkybot.com
 php artisan checkybot:sync --dry-run
 ```
 
-## Runtime Component Status Reporting (v0.2.0)
+## Runtime Component Status Reporting (v0.2.1)
 
 Install the supported client with:
 
 ```bash
-composer require marin-solutions/checkybot-laravel:^0.2.0
+composer require marin-solutions/checkybot-laravel:^0.2.1
 ```
 
 After a component has been declared and synced, report its runtime status through the configured `CheckybotClient`:
@@ -109,6 +109,8 @@ $checkybot->reportComponentStatus(
 
 This method calls `POST /api/v1/projects/{projectId}/components/{componentKey}/status` with the configured base URL, project ID, timeout, Bearer API key, and retry settings. The Checkybot application must support this endpoint before consumers upgrade.
 
+Each call sends an `Idempotency-Key` header. The package generates a stable key for the call and reuses it across configured retries; pass an optional 64-character hexadecimal key as the sixth argument when a caller must safely retry the same operation after an unknown network outcome.
+
 The authenticated JSON body contains only:
 
 ```json
@@ -124,7 +126,7 @@ The authenticated JSON body contains only:
 
 The server maps `failure` to Checkybot's `danger` state and persists the observation against the already-declared component. Declaration sync remains separate and continues to reject runtime status, message, timestamp, and metric fields.
 
-Upgrade guidance: deploy the compatible Checkybot application endpoint and migration first (server commit `0ee9aa61a6ec2ddcd4396b0d40ce9752db53110e`), then change the consumer requirement to `^0.2.0`. Do not add status fields to `php artisan checkybot:sync`; call `reportComponentStatus` separately from application runtime code.
+The server allows observed timestamps up to 120 seconds ahead of its clock to tolerate normal clock skew; larger future timestamps are rejected. Deploy the compatible Checkybot application endpoint and migration first (server hardening commit `1e43daf3334cef0e49dd409b317a650bb74d9984`), then change the consumer requirement to `^0.2.1`. Do not add status fields to `php artisan checkybot:sync`; call `reportComponentStatus` separately from application runtime code.
 
 ## Defining Checks (Fluent API)
 
