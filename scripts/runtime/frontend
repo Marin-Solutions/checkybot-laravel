@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+set -u
+set -o pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+RUNS_ROOT="${ROOT}/build/harness-runs"
+DIST="${ROOT}/build/harness-fixture"
+ACTION="${1:-}"
+shift || true
+RUN_DIR="${HARNESS_RUN_DIR:-}"
+PORT="${HARNESS_FRONTEND_PORT:-8797}"
+BACKEND_URL="${HARNESS_BACKEND_URL:-http://127.0.0.1:8787}"
+TIMEOUT="${HARNESS_FRONTEND_TIMEOUT:-15}"
+
+usage() {
+    printf '%s\n' \
+        'Usage:' \
+        '  scripts/runtime/frontend start --run-dir PATH [--port PORT] [--backend-url URL]' \
+        '  scripts/runtime/frontend stop --run-dir PATH'
+}
+
+while (($# > 0)); do
+    case "$1" in
+        --run-dir) RUN_DIR="${2:-}"; shift 2 ;;
+        --port) PORT="${2:-}"; shift 2 ;;
+        --backend-url) BACKEND_URL="${2:-}"; shift 2 ;;
+        *) printf 'Unknown option: %s\n' "$1" >&2; usage >&2; exit 64 ;;
+    esac
+done
+
+validate_run() {
+    [[ -n "$RUN_DIR" && -f "${RUN_DIR}/run.id" ]] || return 1
+    local parent run_id recorded
+    parent="$(realpath "$(dirname "$RUN_DIR")" 2>/dev/null || true)"
+    run_id="$(basename "$RUN_DIR")"
+    recorded="$(tr -d '[:space:]' < "${RUN_DIR}/run.id")"
+    [[ "$parent" == "$(realpath "$RUNS_ROOT")" && "$run_id" == "$recorded" ]]
+}
+
+process_belongs_to_run() {
+    local pid="$1" run_id="$2"
+    [[ "$pid" =~ ^[0-9]+$ ]] && ((pid > 1)) || return 1
+    kill -0 "$pid" 2>/dev/null || return 1
+    [[ -r "/proc/${pid}/environ" ]] || return 1
+    grep -zFxq "HARNESS_RUN_ID=${run_id}" "/proc/${pid}/environ" || return 1
+    grep -zFxq "HARNESS_RUN_DIR=${RUN_DIR}" "/proc/${pid}/environ"
+}
+
+stop_fixture() {
+    local run_id pid=''
+    run_id="$(tr -d '[:space:]' < "${RUN_DIR}/run.id")"
+    [[ -f "${RUN_DIR}/fixture.pid" ]] && pid="$(tr -d '[:space:]' < "${RUN_DIR}/fixture.pid")"
+    if process_belongs_to_run "$pid" "$run_id"; then
+        printf '[stage=fixture-stop] terminating pid=%s\n' "$pid" >> "${RUN_DIR}/fixture.log"
+        kill -TERM "$pid" 2>/dev/null || true
+        for _ in {1..50}; do
+            kill -0 "$pid" 2>/dev/null || break
+            sleep 0.1
+        done
+        process_belongs_to_run "$pid" "$run_id" && kill -KILL "$pid" 2>/dev/null || true
+    fi
+    rm -f "${RUN_DIR}/fixture.pid"
+    printf 'Stopped Expo fixture server for run %s\n' "$run_id"
+}
+
+if ! validate_run; then
+    printf 'Refusing fixture lifecycle: --run-dir must be a recorded harness run under %s.\n' "$RUNS_ROOT" >&2
+    exit 65
+fi
+
+if [[ "$ACTION" == 'stop' ]]; then
+    stop_fixture
+    exit 0
+fi
+if [[ "$ACTION" != 'start' ]]; then usage >&2; exit 64; fi
+if [[ ! "$PORT" =~ ^[0-9]+$ ]] || ((PORT < 1024 || PORT > 65535)); then
+    printf 'Invalid fixture port: %s\n' "$PORT" >&2
+    exit 65
+fi
+if [[ "$BACKEND_URL" != http://127.0.0.1:* ]]; then
+    printf 'Harness backend URL must target loopback: %s\n' "$BACKEND_URL" >&2
+    exit 65
+fi
+if [[ ! -f "${DIST}/index.html" ]]; then
+    printf 'Missing canonical Expo web build at %s/index.html.\n' "$DIST" >&2
+    exit 66
+fi
+if php -r '$s=@fsockopen("127.0.0.1",(int)$argv[1],$e,$m,0.2); if($s){fclose($s);exit(0);}exit(1);' "$PORT"; then
+    printf 'Fixture port is occupied: %s\n' "$PORT" >&2
+    exit 67
+fi
+
+RUN_ID="$(tr -d '[:space:]' < "${RUN_DIR}/run.id")"
+export HARNESS_RUN_ID="$RUN_ID"
+export HARNESS_RUN_DIR="$RUN_DIR"
+export HARNESS_FRONTEND_HOST=127.0.0.1
+export HARNESS_FRONTEND_PORT="$PORT"
+export HARNESS_BACKEND_URL="$BACKEND_URL"
+export HARNESS_FIXTURE_DIST="$DIST"
+touch "${RUN_DIR}/fixture.log"
+node "${ROOT}/scripts/harness/static-server.mjs" >> "${RUN_DIR}/fixture.log" 2>&1 &
+FIXTURE_PID=$!
+printf '%s\n' "$FIXTURE_PID" > "${RUN_DIR}/fixture.pid"
+sleep 0.2
+
+READY=0
+for ((attempt=0; attempt<TIMEOUT*10; attempt++)); do
+    if ! process_belongs_to_run "$FIXTURE_PID" "$RUN_ID"; then
+        printf 'Expo fixture server exited before readiness; see %s/fixture.log.\n' "$RUN_DIR" >&2
+        rm -f "${RUN_DIR}/fixture.pid"
+        exit 1
+    fi
+    if curl --silent --fail --max-time 1 "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
+        READY=1
+        break
+    fi
+    sleep 0.1
+done
+
+if ((READY == 0)); then
+    stop_fixture >/dev/null
+    printf 'Expo fixture server readiness timed out; see %s/fixture.log.\n' "$RUN_DIR" >&2
+    exit 1
+fi
+printf '[stage=fixture-ready] url=http://127.0.0.1:%s pid=%s\n' "$PORT" "$FIXTURE_PID" >> "${RUN_DIR}/fixture.log"
+printf 'HARNESS_FRONTEND_URL=http://127.0.0.1:%s\nHARNESS_FIXTURE_PID=%s\n' "$PORT" "$FIXTURE_PID"

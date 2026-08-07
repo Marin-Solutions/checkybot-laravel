@@ -1,0 +1,39 @@
+{
+  "name": "checkybot-laravel-harness",
+  "private": true,
+  "scripts": {
+    "harness:frontend:build": "expo export e2e/harness-fixture --platform web --output-dir ../../build/harness-fixture --clear",
+    "harness:frontend:start": "scripts/runtime/frontend start",
+    "harness:frontend:stop": "scripts/runtime/frontend stop",
+    "harness:test:component": "jest tests/Browser/Harness --runInBand",
+    "harness:test:browser": "playwright test e2e/harness-smoke.spec.ts",
+    "harness:integration": "node scripts/harness/integration.mjs"
+  },
+  "dependencies": {
+    "expo": "~54.0.30",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-web": "^0.21.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@testing-library/react-native": "^13.3.3",
+    "@types/jest": "^29.5.14",
+    "@types/react": "~19.1.10",
+    "jest": "^29.7.0",
+    "jest-expo": "~54.0.17",
+    "react-test-renderer": "19.1.0",
+    "typescript": "~5.9.2"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "testMatch": [
+      "<rootDir>/tests/Browser/Harness/**/*.test.ts?(x)"
+    ],
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?|expo(nent)?|@expo(nent)?/.*|expo-modules-core|react-native-svg))"
+    ]
+  }
+}
