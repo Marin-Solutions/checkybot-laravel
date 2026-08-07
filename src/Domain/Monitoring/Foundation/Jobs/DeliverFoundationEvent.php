@@ -9,65 +9,50 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use MarinSolutions\CheckybotLaravel\Models\OutboxEvent;
+use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Delivery\DelayedDeliveryFake;
+use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Delivery\DeterministicFakeEventDispatcher;
+use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Delivery\FoundationEventDispatcher;
+use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Delivery\FoundationEventProcessor;
+use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Delivery\RetryableFailureFake;
+use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Delivery\TerminalFailureFake;
+use MarinSolutions\CheckybotLaravel\Domain\Security\Foundation\RecursiveRedactor;
 
 final class DeliverFoundationEvent implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $tries = 3;
-
-    /** @var list<int> */
-    public array $backoff = [1, 5, 15];
+    public int $tries = 1;
 
     public function __construct(public readonly string $operationId) {}
 
     public function handle(): void
     {
-        $event = OutboxEvent::query()->where('operation_id', $this->operationId)->firstOrFail();
+        $configuredFake = $this->configuredTestingFake();
+        $processor = $configuredFake !== null
+            ? new FoundationEventProcessor($configuredFake, RecursiveRedactor::fromConfiguration())
+            : (app()->bound(FoundationEventProcessor::class)
+                ? app(FoundationEventProcessor::class)
+                : new FoundationEventProcessor(
+                    new DeterministicFakeEventDispatcher,
+                    RecursiveRedactor::fromConfiguration(),
+                ));
 
-        if ($event->status === 'delivered') {
-            return;
+        $processor->process($this->operationId);
+    }
+
+    private function configuredTestingFake(): ?FoundationEventDispatcher
+    {
+        if (! app()->environment(['testing', 'harness'])) {
+            return null;
         }
 
-        $payload = $event->payload;
-        $consumers = match ($event->event_type) {
-            'monitor.transitioned' => ['alerting', 'agent', 'mobile', 'widget', 'web'],
-            'contract.check_sync.probed' => ['sdk'],
-            'incident.redaction.probed' => ['ai'],
-            default => [],
+        $message = (string) getenv('CHECKYBOT_FOUNDATION_DELIVERY_MESSAGE');
+
+        return match ((string) getenv('CHECKYBOT_FOUNDATION_DELIVERY_FAKE')) {
+            'retryable' => new RetryableFailureFake($message !== '' ? $message : 'Retryable fake failure'),
+            'terminal' => new TerminalFailureFake($message !== '' ? $message : 'Terminal fake failure'),
+            'delayed' => new DelayedDeliveryFake(max(1, (int) getenv('CHECKYBOT_FOUNDATION_DELIVERY_DELAY'))),
+            default => null,
         };
-
-        $receipts = array_map(function (string $consumer) use ($event, $payload): array {
-            $receipt = [
-                'consumer' => $consumer,
-                'contract_version' => $event->contract_version,
-                'effect' => $consumer === 'sdk' ? 'schema-valid' : 'transition-recorded',
-                'delivered_at' => now()->toISOString(),
-            ];
-
-            if ($event->event_type === 'monitor.transitioned') {
-                $receipt += [
-                    'identity' => $payload['identity'],
-                    'state' => $payload['to_state'],
-                    'severity' => $payload['severity'],
-                    'filter' => $payload['filter'],
-                ];
-            }
-
-            if ($consumer === 'sdk') {
-                $receipt['schema_valid'] = true;
-                $receipt['check_types'] = ['uptime', 'ssl', 'api', 'dead_links', 'open_graph'];
-            }
-
-            return $receipt;
-        }, $consumers);
-
-        $event->forceFill([
-            'status' => 'delivered',
-            'attempts' => $event->attempts + 1,
-            'receipts' => $receipts,
-            'delivered_at' => now(),
-        ])->save();
     }
 }

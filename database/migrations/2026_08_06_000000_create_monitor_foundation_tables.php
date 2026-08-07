@@ -53,10 +53,12 @@ return new class extends Migration
             $table->string('status', 16)->default('pending');
             $table->unsignedInteger('attempts')->default(0);
             $table->timestampTz('available_at')->nullable();
+            $table->uuid('claim_token')->nullable();
+            $table->timestampTz('claimed_at')->nullable();
             $table->timestampTz('delivered_at')->nullable();
             $table->json('receipts')->nullable();
             $table->json('sanitized_payload')->nullable();
-            $table->text('failure_metadata')->nullable();
+            $table->json('failure_metadata')->nullable();
             $table->timestampsTz();
             $table->index(['status', 'available_at'], 'outbox_events_relay_index');
         });

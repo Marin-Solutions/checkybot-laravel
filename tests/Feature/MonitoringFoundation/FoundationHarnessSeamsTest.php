@@ -23,7 +23,8 @@ function foundationTransitionPayload(string $projectId, string $monitorId): arra
     ];
 }
 
-function runFoundationQueueWorker(string $database): Process
+/** @param array<string, string> $environment */
+function runFoundationQueueWorker(string $database, array $environment = []): Process
 {
     $process = new Process([
         PHP_BINARY,
@@ -35,7 +36,7 @@ function runFoundationQueueWorker(string $database): Process
         '--tries=1',
         '--timeout=15',
         '--no-interaction',
-    ], dirname(__DIR__, 3), [
+    ], dirname(__DIR__, 3), array_merge([
         'APP_ENV' => 'testing',
         'APP_KEY' => 'base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
         'DB_CONNECTION' => 'sqlite',
@@ -43,7 +44,7 @@ function runFoundationQueueWorker(string $database): Process
         'QUEUE_CONNECTION' => 'database',
         'CACHE_STORE' => 'array',
         'SESSION_DRIVER' => 'array',
-    ]);
+    ], $environment));
     $process->setTimeout(30);
     $process->run();
 
@@ -169,3 +170,54 @@ it('delivers every typed check array to the sdk and rejects malformed contracts 
 
     expect(OutboxEvent::query()->count())->toBe(1);
 })->group('AC-domain-runtime-foundation-5');
+
+it('delivers only a sanitized incident payload to the registered ai fake through the real worker', function (): void {
+    $operationId = (string) Str::uuid();
+    $secrets = [
+        'query-corpus-secret',
+        'bearer-corpus-secret',
+        'cookie-corpus-secret',
+        'configured-corpus-secret',
+        'incident@example.test',
+        '198.51.100.27',
+        '2001:db8:abcd::17',
+    ];
+    config()->set('checkybot.monitor_foundation.redaction.secret_literals', ['configured-corpus-secret']);
+
+    $this->postJson('/__harness/monitor-foundation/events', [
+        'operation_id' => $operationId,
+        'event_type' => 'incident.redaction.probed',
+        'payload' => [
+            'contract_version' => 'monitor-foundation.v1',
+            'incident_id' => (string) Str::uuid(),
+            'log_lines' => [
+                'GET https://example.test/probe?token=query-corpus-secret',
+                'Authorization: Bearer bearer-corpus-secret',
+                'Cookie: session=cookie-corpus-secret',
+                'configured-corpus-secret',
+                'contact incident@example.test',
+                'peer 198.51.100.27',
+                'peer 2001:db8:abcd::17',
+                'diagnostic=connection-timeout',
+            ],
+        ],
+    ])->assertAccepted()->assertJsonPath('status', 'queued');
+
+    expect(Artisan::call('checkybot:foundation-relay'))->toBe(0);
+    $worker = runFoundationQueueWorker($this->foundationDatabase, [
+        'CHECKYBOT_REDACTION_SECRETS' => 'configured-corpus-secret',
+    ]);
+    expect($worker->isSuccessful())->toBeTrue($worker->getErrorOutput());
+
+    $response = $this->getJson("/__harness/monitor-foundation/receipts/{$operationId}")
+        ->assertOk()
+        ->assertJsonPath('status', 'delivered')
+        ->assertJsonPath('receipts.0.consumer', 'ai')
+        ->assertJsonPath('receipts.0.effect', 'incident-sanitized');
+    $encoded = json_encode($response->json('sanitized_payload'), JSON_THROW_ON_ERROR);
+
+    foreach ($secrets as $secret) {
+        expect($encoded)->not->toContain($secret);
+    }
+    expect($encoded)->toContain('diagnostic=connection-timeout');
+})->group('AC-domain-runtime-foundation-8');

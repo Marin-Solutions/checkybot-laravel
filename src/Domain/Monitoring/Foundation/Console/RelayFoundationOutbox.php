@@ -6,8 +6,10 @@ namespace MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Jobs\DeliverFoundationEvent;
 use MarinSolutions\CheckybotLaravel\Models\OutboxEvent;
+use Throwable;
 
 final class RelayFoundationOutbox extends Command
 {
@@ -18,27 +20,48 @@ final class RelayFoundationOutbox extends Command
     public function handle(): int
     {
         $limit = max(1, min(1000, (int) $this->option('limit')));
+        $leaseCutoff = now()->subSeconds(max(1, (int) config('checkybot.monitor_foundation.relay_claim_seconds', 60)));
         $operationIds = OutboxEvent::query()
             ->where('status', 'pending')
             ->where(static fn ($query) => $query->whereNull('available_at')->orWhere('available_at', '<=', now()))
+            ->where(static fn ($query) => $query->whereNull('claimed_at')->orWhere('claimed_at', '<=', $leaseCutoff))
             ->orderBy('id')
             ->limit($limit)
             ->pluck('operation_id');
+        $relayed = 0;
 
         foreach ($operationIds as $operationId) {
-            $claimed = DB::transaction(function () use ($operationId): bool {
+            $claimToken = (string) Str::uuid();
+            $claimed = DB::transaction(function () use ($operationId, $claimToken, $leaseCutoff): bool {
                 return OutboxEvent::query()
                     ->where('operation_id', $operationId)
                     ->where('status', 'pending')
-                    ->update(['status' => 'queued', 'updated_at' => now()]) === 1;
+                    ->where(static fn ($query) => $query->whereNull('available_at')->orWhere('available_at', '<=', now()))
+                    ->where(static fn ($query) => $query->whereNull('claimed_at')->orWhere('claimed_at', '<=', $leaseCutoff))
+                    ->update([
+                        'claim_token' => $claimToken,
+                        'claimed_at' => now(),
+                        'updated_at' => now(),
+                    ]) === 1;
             });
 
-            if ($claimed) {
+            if (! $claimed) {
+                continue;
+            }
+
+            try {
                 DeliverFoundationEvent::dispatch((string) $operationId);
+                $relayed++;
+            } catch (Throwable $exception) {
+                OutboxEvent::query()
+                    ->where('operation_id', $operationId)
+                    ->where('claim_token', $claimToken)
+                    ->update(['claim_token' => null, 'claimed_at' => null, 'updated_at' => now()]);
+                report($exception);
             }
         }
 
-        $this->info("Relayed {$operationIds->count()} foundation event(s).");
+        $this->info("Relayed {$relayed} foundation event(s).");
 
         return self::SUCCESS;
     }

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Support;
 
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Contracts\ContractValidator;
 use MarinSolutions\CheckybotLaravel\Models\MonitorState;
 use MarinSolutions\CheckybotLaravel\Models\MonitorTransition;
@@ -18,21 +20,48 @@ final readonly class AcceptFoundationEvent
     public function execute(array $input): OutboxEvent
     {
         $event = $this->validator->validateEvent($input);
+        $existing = OutboxEvent::query()->where('operation_id', $event['operation_id'])->first();
 
-        return DB::transaction(function () use ($event): OutboxEvent {
-            if ($event['event_type'] === 'monitor.transitioned') {
-                $this->persistTransition($event['operation_id'], $event['payload']);
+        if ($existing !== null) {
+            return $this->assertIdempotentMatch($existing, $event);
+        }
+
+        try {
+            return DB::transaction(function () use ($event): OutboxEvent {
+                if ($event['event_type'] === 'monitor.transitioned') {
+                    $this->persistTransition($event['operation_id'], $event['payload']);
+                }
+
+                return OutboxEvent::query()->create([
+                    'operation_id' => $event['operation_id'],
+                    'event_type' => $event['event_type'],
+                    'contract_version' => $event['payload']['contract_version'],
+                    'payload' => $event['payload'],
+                    'status' => 'pending',
+                    'available_at' => now(),
+                ]);
+            }, 3);
+        } catch (QueryException $exception) {
+            // A concurrent identical submit may win the unique operation-id race.
+            $existing = OutboxEvent::query()->where('operation_id', $event['operation_id'])->first();
+            if ($existing !== null) {
+                return $this->assertIdempotentMatch($existing, $event);
             }
 
-            return OutboxEvent::query()->create([
-                'operation_id' => $event['operation_id'],
-                'event_type' => $event['event_type'],
-                'contract_version' => $event['payload']['contract_version'],
-                'payload' => $event['payload'],
-                'status' => 'pending',
-                'available_at' => now(),
+            throw $exception;
+        }
+    }
+
+    /** @param array<string, mixed> $event */
+    private function assertIdempotentMatch(OutboxEvent $existing, array $event): OutboxEvent
+    {
+        if ($existing->event_type !== $event['event_type'] || $existing->payload !== $event['payload']) {
+            throw ValidationException::withMessages([
+                'operation_id' => ['The operation id is already associated with a different event.'],
             ]);
-        });
+        }
+
+        return $existing;
     }
 
     /** @param array<string, mixed> $payload */

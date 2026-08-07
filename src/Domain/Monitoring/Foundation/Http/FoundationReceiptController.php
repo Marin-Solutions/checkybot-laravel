@@ -19,7 +19,7 @@ final class FoundationReceiptController
 
         return response()->json([
             'operation_id' => $event->operation_id,
-            'status' => $event->status === 'pending' ? 'queued' : $event->status,
+            'status' => in_array($event->status, ['pending', 'processing'], true) ? 'queued' : $event->status,
             'receipts' => $event->receipts ?? [],
             'sanitized_payload' => $event->sanitized_payload,
         ]);

@@ -17,6 +17,7 @@ use MarinSolutions\CheckybotLaravel\Models\Concerns\HasPublicUuid;
  * @property array<string, mixed> $payload
  * @property array<int, array<string, mixed>>|null $receipts
  * @property array<string, mixed>|null $sanitized_payload
+ * @property array<string, mixed>|null $failure_metadata
  */
 final class OutboxEvent extends Model
 {
@@ -31,7 +32,9 @@ final class OutboxEvent extends Model
             'receipts' => 'array',
             'sanitized_payload' => 'array',
             'available_at' => 'immutable_datetime',
+            'claimed_at' => 'immutable_datetime',
             'delivered_at' => 'immutable_datetime',
+            'failure_metadata' => 'array',
         ];
     }
 }

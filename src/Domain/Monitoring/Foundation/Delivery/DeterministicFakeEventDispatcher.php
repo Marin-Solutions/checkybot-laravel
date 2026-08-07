@@ -1,0 +1,49 @@
+<?php
+
+declare(strict_types=1);
+
+namespace MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Delivery;
+
+use MarinSolutions\CheckybotLaravel\Models\OutboxEvent;
+
+final class DeterministicFakeEventDispatcher implements FoundationEventDispatcher
+{
+    public function dispatch(OutboxEvent $event, array $sanitizedPayload): array
+    {
+        $consumers = match ($event->event_type) {
+            'monitor.transitioned' => ['alerting', 'agent', 'mobile', 'widget', 'web'],
+            'contract.check_sync.probed' => ['sdk'],
+            'incident.redaction.probed' => ['ai'],
+            default => throw new TerminalDeliveryException('No consumer is registered for this event type.'),
+        };
+
+        return array_map(function (string $consumer) use ($event, $sanitizedPayload): array {
+            $receipt = [
+                'consumer' => $consumer,
+                'contract_version' => $event->contract_version,
+                'effect' => match ($consumer) {
+                    'sdk' => 'schema-valid',
+                    'ai' => 'incident-sanitized',
+                    default => 'transition-recorded',
+                },
+                'delivered_at' => now()->toISOString(),
+            ];
+
+            if ($event->event_type === 'monitor.transitioned') {
+                $receipt += [
+                    'identity' => $sanitizedPayload['identity'],
+                    'state' => $sanitizedPayload['to_state'],
+                    'severity' => $sanitizedPayload['severity'],
+                    'filter' => $sanitizedPayload['filter'],
+                ];
+            }
+
+            if ($consumer === 'sdk') {
+                $receipt['schema_valid'] = true;
+                $receipt['check_types'] = ['uptime', 'ssl', 'api', 'dead_links', 'open_graph'];
+            }
+
+            return $receipt;
+        }, $consumers);
+    }
+}
