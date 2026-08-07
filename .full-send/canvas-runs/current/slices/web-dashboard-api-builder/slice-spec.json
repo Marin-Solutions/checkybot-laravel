@@ -1,0 +1,421 @@
+{
+  "slice_key": "web-dashboard-api-builder",
+  "base_requirements": [
+    "Canvas slice mandate: migrate the dashboard consumption surface to Inertia, React, shadcn/ui, and Tailwind while leaving unrelated internal Filament CRUD/admin in place",
+    "PRD 7: the web overview renders the canonical nine numbers followed by a problem list, and monitor detail renders incident transitions, durations, and optional annotation content",
+    "PRD 4.3 and 7: API monitors provide a live-sample JSON-path assertion builder; fetch, non-JSON, and authentication failures retain manual JSON-path entry",
+    "PRD 4.3 security: API header and token values are encrypted at rest, masked after entry, and excluded from UI responses, logs, and error reports",
+    "PRD 5.4: the web status header reports the effective global or project maintenance window and its end time",
+    "Inherited MonitorDomainContracts and StatusSummaryReadModel: use server|website|api identities, healthy|warn|down|recovering lifecycle values, warn|critical severity, canonical nine-count/freshness output, masking, and JSON schema contracts without redefining them",
+    "Inherited IncidentTimelineReadModel: monitor detail reads project-authorized ordered transitions, durations, group membership, maintenance suppression, and nullable annotation slots",
+    "Owned alerting-to-web-timeline seam: web routes/controllers and harness fixtures bind to the alerting timeline read model and prove the binding across real HTTP, relay, queue worker, and Inertia HTTP response",
+    "Canvas verification requirement: feature tests cover web routes, timeline reads, sample failures, and masking; component tests cover overview, problems, timeline, and builder states; one canonical full-runtime Playwright journey runs with the real queue worker"
+  ],
+  "ownership": {
+    "files": [
+      "app/Domain/ApiMonitorBuilder",
+      "app/Http/Controllers/WebDashboard",
+      "app/Http/Controllers/ApiMonitorBuilderController.php",
+      "database/migrations/2026_08_06_040000-2026_08_06_049999",
+      "resources/css/checkybot-dashboard.css",
+      "resources/js/Components/CheckybotDashboard",
+      "resources/js/Pages/CheckybotDashboard",
+      "routes/web-dashboard.php",
+      "tests/Component/WebDashboard",
+      "tests/Feature/WebDashboard",
+      "tests/Unit/ApiMonitorBuilder"
+    ],
+    "migration_timestamp_range": "2026_08_06_040000-2026_08_06_049999"
+  },
+  "api_contract": [
+    {
+      "route": "GET /checkybot",
+      "request": {
+        "headers": {
+          "Accept": "text/html or application/json",
+          "X-Inertia": "true for Inertia navigation"
+        },
+        "query": {
+          "types[]": "optional unique values from server|website|api",
+          "states[]": "optional unique values from warn|down|recovering; defaults to all three problem states",
+          "severities[]": "optional unique values from warn|critical",
+          "monitor_uuids[]": "optional unique UUIDs, including notification deep-link filters",
+          "cursor": "optional opaque pagination cursor",
+          "per_page": "optional integer 1..100; default 25"
+        },
+        "validation": "Invalid enum, UUID, cursor, or page-size input returns the standard 422 Inertia validation bag without executing an unbounded query.",
+        "authorization": "Existing authenticated web operator guard; the operator's current authorized project is authoritative and no project override is accepted."
+      },
+      "response": {
+        "200": {
+          "component": "CheckybotDashboard/Overview",
+          "props": {
+            "summary": {
+              "counts": "exact servers|websites|apis x healthy|warn|down non-negative integer grid",
+              "updated_at": "RFC3339 UTC datetime|null",
+              "stale": "boolean from StatusSummaryReadModel"
+            },
+            "problems": [
+              {
+                "identity": "shared MonitorIdentity",
+                "state": "warn|down|recovering",
+                "severity": "warn|critical",
+                "observed_at": "RFC3339 UTC datetime",
+                "detail_url": "project-authorized monitor detail URL"
+              }
+            ],
+            "filters": "normalized applied type/state/severity/monitor UUID arrays",
+            "pagination": {
+              "next_cursor": "opaque string|null",
+              "per_page": "integer"
+            },
+            "maintenance": {
+              "silenced": "boolean",
+              "effective_scope": "project|global|null",
+              "ends_at": "RFC3339 UTC datetime|null",
+              "reason": "redacted string|null"
+            }
+          }
+        },
+        "302": "Redirect to the existing login route when unauthenticated",
+        "403": "The operator cannot view the selected current project",
+        "422": "Standard Inertia validation errors for malformed filters"
+      },
+      "consumed_by": "frontend"
+    },
+    {
+      "route": "GET /checkybot/monitors/{type}/{monitor_uuid}",
+      "request": {
+        "path": {
+          "type": "server|website|api",
+          "monitor_uuid": "UUID"
+        },
+        "headers": {
+          "Accept": "text/html or application/json",
+          "X-Inertia": "true for Inertia navigation"
+        },
+        "authorization": "Existing authenticated web operator guard; the monitor must belong to the operator's current authorized project."
+      },
+      "response": {
+        "200": {
+          "component": "CheckybotDashboard/MonitorDetail",
+          "props": {
+            "monitor": {
+              "identity": "shared MonitorIdentity",
+              "current_state": "healthy|warn|down|recovering",
+              "entered_at": "RFC3339 UTC datetime"
+            },
+            "timeline": {
+              "transitions": "ordered IncidentTimelineReadModel transitions with from, to, severity, occurred_at, duration_seconds, reason_code, group_id, and maintenance_suppressed",
+              "incident_groups": "ordered group summaries with membership, opened_at, closed_at, and notification_thread_key",
+              "annotation_slots": "provider-neutral slots whose value is string|null"
+            }
+          }
+        },
+        "302": "Redirect to the existing login route when unauthenticated",
+        "403": "The operator cannot read this project",
+        "404": "No monitor of this type and UUID exists in the authorized project"
+      },
+      "consumed_by": "frontend"
+    },
+    {
+      "route": "PHP StatusSummaryQuery::forProject(AuthorizedProject)",
+      "request": {
+        "project_uuid": "UUID derived only from the authenticated operator's current project",
+        "authorization": "The WebDashboard controller must complete project authorization before calling the query."
+      },
+      "response": {
+        "counts": "exact servers|websites|apis x healthy|warn|down grid; recovering contributes to warn",
+        "updated_at": "RFC3339 UTC datetime|null",
+        "stale": "boolean using the foundation 900-second freshness rule"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "PHP IncidentTimelineReadModel::forMonitor(AuthorizedMonitorIdentity)",
+      "request": {
+        "identity": {
+          "project_uuid": "authorized current-project UUID",
+          "monitor_uuid": "route UUID",
+          "type": "server|website|api"
+        },
+        "authorization": "AuthorizedMonitorIdentity must bind the same current-project UUID and rejects any mismatch."
+      },
+      "response": {
+        "current_state": "healthy|warn|down|recovering",
+        "entered_at": "RFC3339 UTC datetime",
+        "transitions": "ordered transitions with final durations or null while open, reason, group, and maintenance-suppression metadata",
+        "incident_groups": "project-isolated group membership and open/close metadata",
+        "annotation_slots": "array of provider-neutral key and string|null value pairs"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "GET /checkybot/api-monitors/{monitor_uuid}/assertions",
+      "request": {
+        "path": {
+          "monitor_uuid": "UUID of an API monitor"
+        },
+        "headers": {
+          "Accept": "text/html or application/json",
+          "X-Inertia": "true for Inertia navigation"
+        },
+        "authorization": "Existing authenticated web operator guard; the API monitor must belong to the current authorized project."
+      },
+      "response": {
+        "200": {
+          "component": "CheckybotDashboard/ApiAssertionBuilder",
+          "props": {
+            "monitor": "shared API MonitorIdentity",
+            "configuration": {
+              "endpoint": "http|https URL",
+              "method": "GET|POST|PUT|PATCH|DELETE",
+              "headers": [
+                {
+                  "name": "header name",
+                  "mask": "fixed non-secret mask",
+                  "has_value": "boolean"
+                }
+              ],
+              "assertions": "ordered normalized status, latency, and json_path assertion array",
+              "version": "positive integer for optimistic concurrency"
+            },
+            "sample": "null on initial load"
+          }
+        },
+        "302": "Redirect to the existing login route when unauthenticated",
+        "403": "The operator cannot manage this project",
+        "404": "API monitor not found"
+      },
+      "consumed_by": "frontend"
+    },
+    {
+      "route": "POST /checkybot/api-monitors/{monitor_uuid}/sample",
+      "request": {
+        "path": {
+          "monitor_uuid": "UUID of an API monitor in the current project"
+        },
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": "existing web CSRF token"
+        },
+        "body": {
+          "endpoint": "http|https URL without userinfo",
+          "method": "GET|POST|PUT|PATCH|DELETE",
+          "headers": "array of {name, action: preserve|set|remove, value?: string}; preserve never sends a secret to the browser",
+          "request_body": "JSON scalar, array, object, or null",
+          "configuration_version": "positive integer"
+        },
+        "validation": "Maximum 50 unique valid header names; set requires a bounded value, preserve requires an existing encrypted value, remove prohibits value. The endpoint and every redirect are DNS-resolved and reject loopback, private, link-local, reserved, metadata, and userinfo targets in production. Fetches use bounded redirects, timeout, and 256 KiB response limits. A harness-only exact allowlist may expose a deterministic loopback sample fixture and is absent in production.",
+        "authorization": "Existing authenticated web operator plus CSRF; the monitor must be an API monitor in the current authorized project."
+      },
+      "response": {
+        "200": {
+          "data": {
+            "mode": "sample",
+            "status": "upstream HTTP status integer",
+            "latency_ms": "non-negative integer",
+            "json": "parsed bounded JSON value",
+            "paths": "ordered array of {path: canonical JSONPath, inferred_type: string, preview: bounded non-secret scalar|string}"
+          }
+        },
+        "403": {
+          "message": "The operator cannot manage this API monitor."
+        },
+        "404": {
+          "message": "API monitor not found."
+        },
+        "409": {
+          "message": "The builder configuration changed; reload before fetching another sample.",
+          "manual_entry": true
+        },
+        "422": {
+          "message": "string",
+          "errors": "object keyed by invalid or unsafe field",
+          "manual_entry": true
+        },
+        "502": {
+          "error": {
+            "code": "fetch_failed|upstream_auth|non_json",
+            "message": "bounded redacted operator-safe message",
+            "upstream_status": "integer|null"
+          },
+          "manual_entry": true
+        },
+        "504": {
+          "error": {
+            "code": "fetch_timeout",
+            "message": "bounded redacted operator-safe message",
+            "upstream_status": null
+          },
+          "manual_entry": true
+        }
+      },
+      "consumed_by": "frontend"
+    },
+    {
+      "route": "PUT /checkybot/api-monitors/{monitor_uuid}/assertions",
+      "request": {
+        "path": {
+          "monitor_uuid": "UUID of an API monitor in the current project"
+        },
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": "existing web CSRF token"
+        },
+        "body": {
+          "endpoint": "validated http|https URL",
+          "method": "GET|POST|PUT|PATCH|DELETE",
+          "headers": "maximum 50 {name, action: preserve|set|remove, value?: string} entries",
+          "assertions": "ordered maximum 50 entries; kind=status uses equals|in and HTTP codes, kind=latency uses less_than_or_equal and milliseconds, kind=json_path uses canonical path plus exists|not_null|equals|not_equals|type|non_empty with operator-appropriate expected value",
+          "configuration_version": "positive integer used for optimistic concurrency"
+        },
+        "validation": "JSON paths are at most 512 characters and satisfy the shared JSON-path grammar; assertion operands must match kind/operator; header and endpoint safety rules equal the sample route. Validation failures do not partially update headers or assertions.",
+        "authorization": "Existing authenticated web operator plus CSRF; project and API-monitor ownership are enforced before reading or decrypting any header."
+      },
+      "response": {
+        "200": {
+          "data": {
+            "endpoint": "normalized URL",
+            "method": "GET|POST|PUT|PATCH|DELETE",
+            "headers": "array containing only name, fixed mask, and has_value",
+            "assertions": "ordered normalized assertion array",
+            "version": "incremented positive integer"
+          }
+        },
+        "403": {
+          "message": "The operator cannot manage this API monitor."
+        },
+        "404": {
+          "message": "API monitor not found."
+        },
+        "409": {
+          "message": "The builder configuration changed; reload before saving."
+        },
+        "422": {
+          "message": "string",
+          "errors": "object keyed by invalid field"
+        }
+      },
+      "consumed_by": "frontend"
+    }
+  ],
+  "backend_milestone_items": [
+    {
+      "milestone_key": "backend-dashboard-read-surface",
+      "title": "Authorized dashboard, problem, and timeline read surface",
+      "spec_section_id": "backend-dashboard-read-surface",
+      "ledger_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/milestones/backend-dashboard-read-surface/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/milestones/backend-dashboard-read-surface/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/milestones/backend-dashboard-read-surface/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/milestones/backend-dashboard-read-surface/handoff.md",
+      "contract_excerpt": "Within inherited ownership, register web/auth/CSRF-aware Inertia routes and thin WebDashboard controllers. Resolve the current project from the existing authenticated operator context, call the foundation StatusSummaryQuery and alerting IncidentTimelineReadModel, query a bounded cursor-paginated problem projection from shared monitor state, and adapt MaintenanceSilencer output into page props. Never accept a project override or redefine shared state/freshness/timeline schemas. Own the alerting-to-web-timeline seam wiring and testing-only loopback harness session/fixture registration in routes/web-dashboard.php; the fixture must be absent in production and enable Playwright to authenticate a deterministic project without bypassing product controller authorization. The seam proof posts results to the real alerting API, executes the registered foundation relay, runs the real queue worker, and reads the resulting timeline through the real X-Inertia monitor-detail response.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-web-dashboard-api-builder-1",
+          "text": "Feature tests prove GET /checkybot requires the existing web operator authentication, derives exactly one authorized current project, returns the canonical nine counts/freshness plus effective maintenance banner props, defaults problems to warn/down/recovering, applies validated type/state/severity/monitor UUID filters, and cursor-paginates without leaking another project's monitors."
+        },
+        {
+          "id": "AC-web-dashboard-api-builder-2",
+          "text": "Feature tests prove GET /checkybot/monitors/{type}/{monitor_uuid} returns 404 for unknown or wrong-type monitors, 403 for a foreign project, and for an authorized monitor returns ordered transitions with open/final durations, incident-group membership, maintenance-suppression flags, and nullable annotation slots matching IncidentTimelineReadModel."
+        },
+        {
+          "id": "AC-web-dashboard-api-builder-3",
+          "text": "A Pest end-to-end test proves the owned alerting-to-web-timeline seam by posting three confirming monitor results through POST /__harness/alerting/results, executing the registered foundation outbox relay, running the real queue worker, authenticating through the testing-only web harness fixture, and observing the resulting down transition and incident group in the real GET /checkybot/monitors/{type}/{monitor_uuid} X-Inertia response, without invoking the result processor, transition service, timeline read model, or controller directly."
+        }
+      ]
+    },
+    {
+      "milestone_key": "backend-api-assertion-builder",
+      "title": "Secure API assertion builder and live sample endpoints",
+      "spec_section_id": "backend-api-assertion-builder",
+      "ledger_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/milestones/backend-api-assertion-builder/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/milestones/backend-api-assertion-builder/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/milestones/backend-api-assertion-builder/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/milestones/backend-api-assertion-builder/handoff.md",
+      "contract_excerpt": "Within inherited ownership and migration range, persist one project-scoped, versioned API-builder configuration per API monitor with ordered assertions and encrypted header values using foundation secret value objects. Keep ApiMonitorBuilderController transport-only; actions/DTOs, JSON-path extraction, outbound sample policy, and the injectable bounded HTTP client live under app/Domain/ApiMonitorBuilder. GET and save responses expose only fixed masks. preserve|set|remove header semantics prevent masked placeholders from overwriting secrets, and optimistic versions prevent stale writes. The sample client revalidates every redirect/DNS result, blocks SSRF targets in production, caps time/redirects/body size, parses JSON only, emits canonical selectable JSON paths, and returns typed redacted fallback errors for transport, timeout, non-JSON, and upstream 401/403. A deterministic harness-only sample upstream may be explicitly allowlisted and must not exist in production.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-web-dashboard-api-builder-4",
+          "text": "Migration, unit, and feature tests prove each API monitor has one project-scoped versioned builder configuration; set header values are ciphertext at rest, preserve leaves ciphertext unchanged, remove deletes it, stale versions return 409 atomically, and no GET/save response, exception, query log, application log, or serialized model contains plaintext or more than the fixed mask."
+        },
+        {
+          "id": "AC-web-dashboard-api-builder-5",
+          "text": "Feature tests through POST /checkybot/api-monitors/{monitor_uuid}/sample prove an authorized bounded JSON response returns status, latency, parsed JSON, and deterministic canonical JSON-path/type/preview choices, while valid preserved encrypted headers are decrypted only for the outbound request and never returned."
+        },
+        {
+          "id": "AC-web-dashboard-api-builder-6",
+          "text": "Failure-path feature tests prove malformed or unsafe URLs and redirects are rejected before connection, timeout/transport/non-JSON/upstream-401-or-403 responses return the declared redacted fetch_timeout|fetch_failed|non_json|upstream_auth error with manual_entry=true, response limits are enforced, and credentials or upstream bodies never appear in responses or logs."
+        },
+        {
+          "id": "AC-web-dashboard-api-builder-7",
+          "text": "Table-driven unit and feature tests prove PUT /checkybot/api-monitors/{monitor_uuid}/assertions accepts and preserves order for valid status, latency, and chained JSON-path operators, rejects invalid path grammar, kind/operator/operand combinations, duplicate header names, more than 50 headers or assertions, and foreign-project access, and performs no partial write on any 403, 409, or 422 response."
+        }
+      ]
+    }
+  ],
+  "frontend_milestone_items": [
+    {
+      "milestone_key": "frontend-dashboard-timeline",
+      "title": "Inertia overview, filtered problems, timeline, and maintenance UI",
+      "spec_section_id": "frontend-dashboard-timeline",
+      "ledger_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/milestones/frontend-dashboard-timeline/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/milestones/frontend-dashboard-timeline/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/milestones/frontend-dashboard-timeline/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/milestones/frontend-dashboard-timeline/handoff.md",
+      "contract_excerpt": "Within inherited resources/js and CSS ownership, implement the consumption surface as Inertia React pages using shadcn/ui composition and Tailwind design tokens, not Filament widgets or duplicated server enums. Build reusable CheckybotDashboard primitives for the 3x3 status grid, problem filters/list, maintenance banner, state/severity badges, timeline events, group membership, durations, annotations, loading/empty/error states, and accessible keyboard/focus behavior. Consume only declared props and shared generated contracts. Preserve unrelated Filament internal CRUD/admin. No screen references are owned by this slice, so behavior, responsiveness, and accessibility are authoritative rather than visual-diff evidence.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-web-dashboard-api-builder-8",
+          "text": "Component tests prove the Inertia overview renders exactly nine labeled server/website/API by healthy/warn/down values, displays freshness without presenting stale data as healthy, and renders explicit all-healthy, problems-present, empty-project, and loading/error states from contract-valid props."
+        },
+        {
+          "id": "AC-web-dashboard-api-builder-9",
+          "text": "Component and navigation tests prove problem filters initialize from URL type/state/severity/monitor UUID parameters, update the Inertia query while preserving normalized selections, render only returned problems, follow each authorized detail URL, and retain the notification-provided monitor UUID filter on reload/back navigation."
+        },
+        {
+          "id": "AC-web-dashboard-api-builder-10",
+          "text": "Component tests prove monitor detail renders transitions in chronological order with current/open and completed durations, state/severity and maintenance-suppressed labels, incident-group members, an explicit empty timeline, and annotation slots that distinguish unavailable null values from present text."
+        },
+        {
+          "id": "AC-web-dashboard-api-builder-11",
+          "text": "Component tests prove an active global or project maintenance prop renders a persistent status-list header banner containing the effective scope and localized silenced-until time, while an inactive prop renders no banner; the banner remains keyboard-readable at supported responsive breakpoints."
+        }
+      ]
+    },
+    {
+      "milestone_key": "frontend-api-assertion-builder",
+      "title": "Interactive JSON-path API assertion builder",
+      "spec_section_id": "frontend-api-assertion-builder",
+      "ledger_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/milestones/frontend-api-assertion-builder/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/milestones/frontend-api-assertion-builder/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/milestones/frontend-api-assertion-builder/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/milestones/frontend-api-assertion-builder/handoff.md",
+      "contract_excerpt": "Within inherited frontend ownership, implement the Inertia React assertion builder with shadcn/ui controls and Tailwind tokens. It edits endpoint/method, masked header rows, and ordered status/latency/JSON-path assertions; fetches a live sample through the declared POST route; presents a navigable JSON tree/path picker; and copies a selected canonical path into an assertion without discarding unsaved work. Header rows begin in preserve mode, reveal no stored value, and explicitly switch to replace/remove. Every sample failure keeps manual JSON-path text entry enabled and displays only the server's redacted message. Saving uses configuration_version, preserves field errors and focus, and replaces local state only with the normalized masked response.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-web-dashboard-api-builder-12",
+          "text": "Component tests prove a successful live sample renders bounded JSON, status and latency, supports keyboard navigation through the returned path tree, and inserts the selected canonical JSON path into a new or existing ordered assertion without changing unrelated unsaved fields."
+        },
+        {
+          "id": "AC-web-dashboard-api-builder-13",
+          "text": "Component tests prove stored header rows render only name and fixed mask, submit preserve without a value by default, require an explicit replace action before accepting a new secret, support explicit removal, and never place a stored plaintext value in rendered DOM, component state, validation output, or test snapshots."
+        },
+        {
+          "id": "AC-web-dashboard-api-builder-14",
+          "text": "Component tests prove fetch_timeout, fetch_failed, non_json, upstream_auth, 409, and 422 states show the declared redacted error, retain all draft assertions and headers, and keep labeled manual JSON-path text entry and save controls usable."
+        },
+        {
+          "id": "AC-web-dashboard-api-builder-15",
+          "text": "Component and request tests prove users can add, reorder, edit, and remove status, latency, and JSON-path assertions; field errors map to the correct row; stale-version save prompts reload without losing the draft; and a successful save replaces rows only with the normalized masked response and incremented version."
+        },
+        {
+          "id": "AC-web-dashboard-api-builder-16",
+          "text": "The canonical full-runtime Playwright journey runs with the real queue worker, authenticates through the harness fixture, creates a down timeline through real alerting result APIs and the registered relay, verifies the overview/problem/detail Inertia flow and maintenance banner, then uses the real sample and save HTTP routes to pick a JSON path, preserve a masked header, save an assertion, exercise an upstream-auth manual fallback, and emit integration evidence without direct controller, processor, read-model, or component invocation."
+        }
+      ]
+    }
+  ]
+}

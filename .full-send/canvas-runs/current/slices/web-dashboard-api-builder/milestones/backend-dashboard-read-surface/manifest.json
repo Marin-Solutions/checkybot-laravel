@@ -1,0 +1,1 @@
+{"targets":["backend"],"verification":[{"target":"backend","cwd":".","commands":["./vendor/bin/pest tests/Feature/WebDashboard --compact"]}],"artifacts":["test_results"]}
