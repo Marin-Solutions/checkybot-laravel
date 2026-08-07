@@ -15,5 +15,6 @@ Outcome: completed
 - `vendor/bin/pest tests/Feature/AiAnnotations --compact` — 26 tests / 257 assertions passed.
 - `vendor/bin/phpstan analyse --no-progress` — passed with no errors.
 - `vendor/bin/pint --test` — passed.
+- `vendor/bin/pest --compact` — 350 tests / 2258 assertions passed.
 
 Detailed acceptance evidence and log paths are recorded in `ledger.md`.

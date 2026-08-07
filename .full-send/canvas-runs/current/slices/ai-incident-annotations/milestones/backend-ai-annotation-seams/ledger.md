@@ -20,5 +20,6 @@ Implemented only `backend-ai-annotation-seams`: the AI outbox decorator, transit
 | `vendor/bin/pest tests/Feature/AiAnnotations --compact` | 0 | 26 tests, 257 assertions passed (`build/backend-ai-annotation-seams-pest.log`) |
 | `vendor/bin/phpstan analyse --no-progress` | 0 | No errors (`build/backend-ai-annotation-seams-rework-phpstan.log`) |
 | `vendor/bin/pint --test` | 0 | Passed (`build/backend-ai-annotation-seams-rework-pint.log`) |
+| `vendor/bin/pest --compact` | 0 | 350 tests, 2258 assertions passed (`build/backend-ai-annotation-seams-full-pest.log`) |
 
 All feature tests create unique workspace-local SQLite files under `build/` and invoke migration `up()` methods directly. No Artisan migration command or destructive database command was run.
