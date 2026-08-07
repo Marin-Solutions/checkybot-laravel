@@ -3,6 +3,7 @@
 namespace MarinSolutions\CheckybotLaravel;
 
 use MarinSolutions\CheckybotLaravel\Commands\CheckybotCommand;
+use MarinSolutions\CheckybotLaravel\Domain\Agent\AgentServiceProvider;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\AlertingServiceProvider;
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\MonitoringFoundationServiceProvider;
 use MarinSolutions\CheckybotLaravel\Domain\Push\PushServiceProvider;
@@ -24,6 +25,7 @@ class CheckybotLaravelServiceProvider extends PackageServiceProvider
     {
         $this->app->register(MonitoringFoundationServiceProvider::class);
         $this->app->register(AlertingServiceProvider::class);
+        $this->app->register(AgentServiceProvider::class);
         $this->app->register(PushServiceProvider::class);
 
         // Register CheckRegistry as singleton

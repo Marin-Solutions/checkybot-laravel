@@ -6,6 +6,11 @@ namespace MarinSolutions\CheckybotLaravel\Domain\Agent\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @property string $mount
+ * @property float $used_percent
+ * @property float|null $predicted_days_to_full
+ */
 final class AgentDiskSample extends Model
 {
     public $timestamps = false;

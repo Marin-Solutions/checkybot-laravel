@@ -78,7 +78,9 @@ beforeEach(function (): void {
     config()->set('checkybot.monitor_foundation.redaction.secret_literals', ['configured-agent-secret']);
     DB::purge('agent_v2_test');
     (include dirname(__DIR__, 3).'/database/migrations/2026_08_06_000000_create_monitor_foundation_tables.php')->up();
+    (include dirname(__DIR__, 3).'/database/migrations/2026_08_06_010000_create_alerting_result_runtime_tables.php')->up();
     (include dirname(__DIR__, 3).'/database/migrations/2026_08_06_030000_create_agent_v2_report_runtime_tables.php')->up();
+    (include dirname(__DIR__, 3).'/database/migrations/2026_08_06_031000_create_agent_monitor_evaluator_tables.php')->up();
 });
 
 afterEach(function (): void {

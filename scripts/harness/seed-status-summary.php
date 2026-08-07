@@ -32,5 +32,27 @@ $statement->execute([
     'created_at' => $now,
     'updated_at' => $now,
 ]);
+$statement->execute([
+    'public_id' => '11111111-1111-4111-8111-111111111113',
+    'project_id' => '11111111-1111-4111-8111-111111111111',
+    'name' => 'canonical-agent-evaluator-fixture',
+    'token_hash' => hash('sha256', 'cbp_harness_agent_report_token'),
+    'abilities' => json_encode(['agent:report'], JSON_THROW_ON_ERROR),
+    'created_at' => $now,
+    'updated_at' => $now,
+]);
 
-fwrite(STDOUT, "Seeded canonical status-summary harness token.\n");
+$server = $pdo->prepare(<<<'SQL'
+INSERT INTO agent_servers
+    (server_uuid, project_id, enabled, link_cap_bps, share_redacted_logs, created_at, updated_at)
+VALUES
+    (:server_uuid, :project_id, 1, 1000000000, 0, :created_at, :updated_at)
+SQL);
+$server->execute([
+    'server_uuid' => '22222222-2222-4222-8222-222222222222',
+    'project_id' => '11111111-1111-4111-8111-111111111111',
+    'created_at' => $now,
+    'updated_at' => $now,
+]);
+
+fwrite(STDOUT, "Seeded canonical status-summary and agent evaluator harness identities.\n");

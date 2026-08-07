@@ -6,6 +6,12 @@ namespace MarinSolutions\CheckybotLaravel\Domain\Agent\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @property string $pool
+ * @property int $active_workers
+ * @property int $max_children
+ * @property int $max_children_reached_5m
+ */
 final class AgentPhpFpmSample extends Model
 {
     public $timestamps = false;

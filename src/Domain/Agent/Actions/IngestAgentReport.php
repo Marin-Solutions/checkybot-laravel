@@ -12,6 +12,7 @@ use MarinSolutions\CheckybotLaravel\Domain\Agent\Exceptions\AgentReportForbidden
 use MarinSolutions\CheckybotLaravel\Domain\Agent\Exceptions\AgentReportOperationCollision;
 use MarinSolutions\CheckybotLaravel\Domain\Agent\Jobs\EvaluateAgentReport;
 use MarinSolutions\CheckybotLaravel\Domain\Agent\Models\AgentReport;
+use MarinSolutions\CheckybotLaravel\Domain\Agent\Models\AgentServerLiveness;
 use MarinSolutions\CheckybotLaravel\Domain\Agent\Models\RegisteredServer;
 use MarinSolutions\CheckybotLaravel\Domain\Security\Foundation\RecursiveRedactor;
 use MarinSolutions\CheckybotLaravel\Models\ProjectApiToken;
@@ -49,6 +50,7 @@ final readonly class IngestAgentReport
 
         try {
             DB::transaction(function () use ($server, $data, $canonical, $hash, &$created): void {
+                $lockedServer = RegisteredServer::query()->whereKey($server->getKey())->lockForUpdate()->firstOrFail();
                 $existing = AgentReport::query()->where('operation_id', $data->operationId)->first();
                 if ($existing !== null) {
                     $this->assertSamePayload($existing, $hash);
@@ -58,8 +60,8 @@ final readonly class IngestAgentReport
 
                 $report = AgentReport::query()->create([
                     'operation_id' => $data->operationId,
-                    'agent_server_id' => $server->getKey(),
-                    'project_id' => $server->project_id,
+                    'agent_server_id' => $lockedServer->getKey(),
+                    'project_id' => $lockedServer->project_id,
                     'payload_hash' => $hash,
                     'schema_version' => $data->schemaVersion,
                     'agent_version' => $data->agentVersion,
@@ -97,6 +99,21 @@ final readonly class IngestAgentReport
                     'observed_at' => $line['observed_at'],
                     'redacted_line' => $this->redactor->redact($line['line']),
                 ], $data->relevantLogLines));
+
+                $liveness = AgentServerLiveness::query()->where('agent_server_id', $lockedServer->getKey())->first();
+                if ($liveness === null) {
+                    AgentServerLiveness::query()->create([
+                        'agent_server_id' => $lockedServer->getKey(),
+                        'project_id' => $lockedServer->project_id,
+                        'last_accepted_observed_at' => $data->observedAt,
+                        'reporting_interval_seconds' => $data->reportingIntervalSeconds,
+                    ]);
+                } elseif ($data->observedAt->greaterThan($liveness->last_accepted_observed_at)) {
+                    $liveness->forceFill([
+                        'last_accepted_observed_at' => $data->observedAt,
+                        'reporting_interval_seconds' => $data->reportingIntervalSeconds,
+                    ])->save();
+                }
 
                 EvaluateAgentReport::dispatch($data->operationId)->afterCommit();
                 $created = true;

@@ -6,6 +6,12 @@ namespace MarinSolutions\CheckybotLaravel\Domain\Agent\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @property int|null $rx_delta_bytes
+ * @property int|null $tx_delta_bytes
+ * @property float|null $elapsed_seconds
+ * @property string $sample_status
+ */
 final class AgentNetworkSample extends Model
 {
     public $timestamps = false;

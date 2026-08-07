@@ -6,6 +6,7 @@ namespace MarinSolutions\CheckybotLaravel\Domain\Agent\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/** @property string $status */
 final class AgentPrerequisite extends Model
 {
     public $timestamps = false;
