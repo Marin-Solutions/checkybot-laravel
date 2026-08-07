@@ -1,0 +1,51 @@
+{
+  "slice_key": "push-mobile-widget-status",
+  "title": "Expo push, iOS widget, and mobile status loop",
+  "spec_path": ".full-send/canvas-runs/current/slices/push-mobile-widget-status/spec.json",
+  "mandate": "Ship the glanceability surface: Expo React Native app shell, device-token registration, PUSH notification channel mapping including Time Sensitive critical pushes and silent warn pushes, four-week dual-send reliability recording, iOS-only 3x3 WidgetKit extension reading /api/status-summary directly, stale-state rendering after 15 minutes, tap-to-filtered-problem-list deep links, and mobile loading/healthy/offline states. Own the NotificationIntentCreated-to-Expo queue listener and WidgetKit refresh wiring. Verification expectations: feature tests for device registration, push payload priority/sound/severity, reliability recording, and summary auth; component tests for mobile status states and widget stale/healthy/problem layouts; and a full-runtime Playwright journey through the canonical harness with the queue worker running.",
+  "ownership": {
+    "files": [
+      "app/Domain/Push",
+      "app/Http/Controllers/PushDeviceController.php",
+      "app/Jobs/Push",
+      "app/Notifications/Channels/ExpoPushChannel.php",
+      "database/migrations/2026_08_06_020000-2026_08_06_029999",
+      "mobile",
+      "routes/push.php",
+      "tests/Component/MobileStatus",
+      "tests/Feature/PushNotifications",
+      "tests/Unit/PushNotifications"
+    ],
+    "migration_timestamp_range": "2026_08_06_020000-2026_08_06_029999"
+  },
+  "contracts": [
+    {
+      "consumes": "MonitorDomainContracts",
+      "from": "domain-runtime-foundation",
+      "contract": "Uses shared severity, stale, monitor-filter, and status-summary schemas."
+    },
+    {
+      "consumes": "StatusSummaryReadModel",
+      "from": "domain-runtime-foundation",
+      "contract": "Widget and app consume /api/status-summary nine-number counts and freshness."
+    },
+    {
+      "consumes": "NotificationIntentCreated",
+      "from": "alerting-reliability-core",
+      "contract": "Sends grouped incident/recovery push notifications and updates widget freshness on accepted notification intents."
+    }
+  ],
+  "depends_on": [
+    "alerting-reliability-core"
+  ],
+  "owned_seams": [
+    {
+      "seam_key": "alerting-to-push-delivery",
+      "event_or_interface": "NotificationIntentCreated",
+      "producer_slice": "alerting-reliability-core",
+      "consumer_slice": "push-mobile-widget-status",
+      "owner_slice": "push-mobile-widget-status",
+      "wiring": "Push slice owns the queued NotificationIntentCreated listener, Expo Push Service client, retry/failure recording, and silent widget-refresh accelerator dispatch."
+    }
+  ]
+}

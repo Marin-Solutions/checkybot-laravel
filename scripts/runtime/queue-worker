@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${HARNESS_RUN_DIR:?HARNESS_RUN_DIR is required}"
+: "${HARNESS_RUN_ID:?HARNESS_RUN_ID is required}"
+
+printf '%s\n' "[stage=worker-start] run_id=${HARNESS_RUN_ID}" >&2
+touch "${HARNESS_RUN_DIR}/worker.ready"
+
+exec php "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/harness/artisan" \
+    queue:work database --queue=default --sleep=1 --tries=1 --timeout=15 --no-interaction

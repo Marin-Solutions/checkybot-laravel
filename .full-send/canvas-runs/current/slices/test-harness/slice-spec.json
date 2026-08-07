@@ -1,0 +1,162 @@
+{
+  "slice_key": "test-harness",
+  "base_requirements": [
+    "Canvas foundation mandate: prove the app development-server and queue-worker lifecycles before product work",
+    "Canvas foundation mandate: prove the Expo web build/serve lifecycle, harness fixture component tests, and a headless Playwright smoke journey",
+    "Canvas integration requirement: emit a reusable integration-verification artifact template and one completed proof artifact from the canonical full-runtime command",
+    "PRD 6.1 React Native (Expo) app direction and PRD 7 web consumption surface require cross-surface browser verification"
+  ],
+  "ownership": {
+    "files": [
+      ".full-send/canvas-runs/current/integration-verification-template.md",
+      ".env.example",
+      "composer.json",
+      "package.json",
+      "package-lock.json",
+      "playwright.config.ts",
+      "scripts/harness",
+      "scripts/runtime",
+      "e2e",
+      "tests/Browser/Harness",
+      "tests/Feature/Harness"
+    ],
+    "migration_timestamp_range": "none"
+  },
+  "api_contract": [
+    {
+      "route": "GET /__harness/ready",
+      "request": {
+        "headers": {
+          "Accept": "application/json"
+        },
+        "authorization": "Harness-only, loopback-bound route enabled only by the canonical test runtime; no user authentication"
+      },
+      "response": {
+        "200": {
+          "app": "ready",
+          "queue": "ready|starting",
+          "run_id": "string"
+        },
+        "503": {
+          "app": "starting|failed",
+          "queue": "starting|failed",
+          "run_id": "string"
+        }
+      },
+      "consumed_by": "frontend"
+    },
+    {
+      "route": "POST /__harness/queue-probes",
+      "request": {
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "probe_id": "UUID string unique within the run"
+        },
+        "validation": "probe_id is required, must be a UUID, and must not already exist in the current run",
+        "authorization": "Harness-only, loopback-bound route enabled only by the canonical test runtime; no user authentication"
+      },
+      "response": {
+        "202": {
+          "probe_id": "UUID string",
+          "status": "queued",
+          "accepted_at": "ISO-8601 datetime"
+        },
+        "422": {
+          "message": "string",
+          "errors": {
+            "probe_id": [
+              "string"
+            ]
+          }
+        }
+      },
+      "consumed_by": "frontend"
+    },
+    {
+      "route": "GET /__harness/queue-probes/{probe_id}",
+      "request": {
+        "path": {
+          "probe_id": "UUID string returned by POST /__harness/queue-probes"
+        },
+        "headers": {
+          "Accept": "application/json"
+        },
+        "authorization": "Harness-only, loopback-bound route enabled only by the canonical test runtime; no user authentication"
+      },
+      "response": {
+        "200": {
+          "probe_id": "UUID string",
+          "status": "queued|processed",
+          "processed_at": "ISO-8601 datetime|null"
+        },
+        "404": {
+          "message": "Queue probe not found"
+        }
+      },
+      "consumed_by": "frontend"
+    }
+  ],
+  "backend_milestone_items": [
+    {
+      "milestone_key": "backend-runtime-harness",
+      "title": "Laravel runtime and queue lifecycle harness",
+      "spec_section_id": "backend-runtime-harness",
+      "ledger_path": ".full-send/canvas-runs/current/slices/test-harness/milestones/backend-runtime-harness/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/test-harness/milestones/backend-runtime-harness/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/test-harness/milestones/backend-runtime-harness/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/test-harness/milestones/backend-runtime-harness/handoff.md",
+      "contract_excerpt": "Within the inherited ownership only, provide deterministic scripts/runtime lifecycle commands for a harness-only Laravel/Testbench app and its real queue worker, plus scripts/harness fixtures for GET /__harness/ready, POST /__harness/queue-probes, and GET /__harness/queue-probes/{probe_id}. The runtime must bind to loopback, isolate state under a unique run directory, use a run-scoped SQLite database, track only child PIDs it created, and expose no harness route in production. No product behavior or migrations are in scope.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-test-harness-1",
+          "text": "Pest feature tests prove the backend start command launches the harness-only Laravel development server and queue worker, waits until GET /__harness/ready reports app=ready and queue=ready, and the paired stop command terminates only the child PIDs recorded for that run with no harness process left alive."
+        },
+        {
+          "id": "AC-test-harness-2",
+          "text": "A Pest end-to-end feature test submits a UUID through the real POST /__harness/queue-probes API, runs the real queue worker, and observes status=processed with a non-null processed_at through the real GET /__harness/queue-probes/{probe_id} API without invoking the queued job or processor directly."
+        },
+        {
+          "id": "AC-test-harness-3",
+          "text": "Pest feature tests prove occupied-port, app-readiness-timeout, and premature-worker-exit scenarios return a non-zero status, clean up recorded child processes, and retain per-process logs identifying the failed lifecycle stage."
+        },
+        {
+          "id": "AC-test-harness-4",
+          "text": "Pest feature tests prove the runtime creates queue state only in a unique harness run directory backed by that run's SQLite file and refuses to launch when configured with a non-SQLite or non-run-scoped database path."
+        }
+      ]
+    }
+  ],
+  "frontend_milestone_items": [
+    {
+      "milestone_key": "frontend-expo-browser-harness",
+      "title": "Expo web fixture and canonical Playwright verification",
+      "spec_section_id": "frontend-expo-browser-harness",
+      "ledger_path": ".full-send/canvas-runs/current/slices/test-harness/milestones/frontend-expo-browser-harness/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/test-harness/milestones/frontend-expo-browser-harness/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/test-harness/milestones/frontend-expo-browser-harness/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/test-harness/milestones/frontend-expo-browser-harness/handoff.md",
+      "contract_excerpt": "Within the inherited ownership only, provide an e2e-only Expo web fixture, deterministic package scripts for build and static serve, component tests for readiness/queued/processed/error fixture states, and a headless Playwright journey consuming the three harness API routes. The canonical integration command must orchestrate backend, queue worker, Expo web server, browser, cleanup, and evidence generation using .full-send/canvas-runs/current/integration-verification-template.md; it must not introduce product UI.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-test-harness-5",
+          "text": "From a clean checkout with locked dependencies, the canonical Expo web build command exits 0, the serve command exposes the generated harness fixture on its configured loopback URL, and stopping it leaves no recorded fixture-server process alive."
+        },
+        {
+          "id": "AC-test-harness-6",
+          "text": "The canonical component-test command exits 0 and tests the harness fixture's backend-starting, ready, queue-queued, queue-processed, and API-error states using mocked responses that conform to the declared harness API contract."
+        },
+        {
+          "id": "AC-test-harness-7",
+          "text": "The headless Playwright smoke test opens the served Expo web fixture, observes backend readiness, creates a queue probe through POST /__harness/queue-probes, waits while the real queue worker processes it, and displays the processed result obtained from GET /__harness/queue-probes/{probe_id}."
+        },
+        {
+          "id": "AC-test-harness-8",
+          "text": "The single canonical integration command exits 0 only after the Laravel server, queue worker, Expo web build/server, component tests, and Playwright journey all pass; it then emits a completed Markdown proof derived from .full-send/canvas-runs/current/integration-verification-template.md containing the run ID, commit, commands, timestamps, endpoint URLs, queue probe evidence, result summary, and log/screenshot/trace paths, and cleans up every recorded child process."
+        }
+      ]
+    }
+  ]
+}

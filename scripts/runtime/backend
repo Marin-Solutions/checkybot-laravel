@@ -1,0 +1,271 @@
+#!/usr/bin/env bash
+set -u
+set -o pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+RUNS_ROOT="${ROOT}/build/harness-runs"
+ACTION="${1:-}"
+shift || true
+
+RUN_DIR="${HARNESS_RUN_DIR:-}"
+PORT="${HARNESS_BACKEND_PORT:-8787}"
+READINESS_TIMEOUT="${HARNESS_READINESS_TIMEOUT:-15}"
+
+usage() {
+    printf '%s\n' \
+        'Usage:' \
+        '  scripts/runtime/backend start [--run-dir PATH] [--port PORT] [--timeout SECONDS]' \
+        '  scripts/runtime/backend stop --run-dir PATH'
+}
+
+while (($# > 0)); do
+    case "$1" in
+        --run-dir)
+            RUN_DIR="${2:-}"
+            shift 2
+            ;;
+        --port)
+            PORT="${2:-}"
+            shift 2
+            ;;
+        --timeout)
+            READINESS_TIMEOUT="${2:-}"
+            shift 2
+            ;;
+        *)
+            printf 'Unknown option: %s\n' "$1" >&2
+            usage >&2
+            exit 64
+            ;;
+    esac
+done
+
+is_uuid() {
+    [[ "$1" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]]
+}
+
+process_belongs_to_run() {
+    local pid="$1"
+    local run_id="$2"
+    local run_directory="$3"
+
+    [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+    ((pid > 1)) || return 1
+    kill -0 "$pid" 2>/dev/null || return 1
+    [[ -r "/proc/${pid}/environ" ]] || return 1
+    grep -zFxq "HARNESS_RUN_ID=${run_id}" "/proc/${pid}/environ" || return 1
+    grep -zFxq "HARNESS_RUN_DIR=${run_directory}" "/proc/${pid}/environ"
+}
+
+stop_owned_pid() {
+    local role="$1"
+    local run_directory="$2"
+    local run_id="$3"
+    local pid_file="${run_directory}/${role}.pid"
+    local pid
+
+    [[ -f "$pid_file" ]] || return 0
+    pid="$(tr -d '[:space:]' < "$pid_file")"
+
+    if ! process_belongs_to_run "$pid" "$run_id" "$run_directory"; then
+        printf '[stage=stop] %s pid=%s is not a live child owned by run %s; skipped\n' "$role" "$pid" "$run_id" >> "${run_directory}/runtime.log"
+        return 0
+    fi
+
+    printf '[stage=stop] terminating %s pid=%s\n' "$role" "$pid" >> "${run_directory}/runtime.log"
+    kill -TERM "$pid" 2>/dev/null || true
+
+    for _ in {1..50}; do
+        kill -0 "$pid" 2>/dev/null || return 0
+        sleep 0.1
+    done
+
+    if process_belongs_to_run "$pid" "$run_id" "$run_directory"; then
+        kill -KILL "$pid" 2>/dev/null || true
+    fi
+}
+
+stop_runtime() {
+    local run_directory="$1"
+    local run_id
+
+    if [[ ! -f "${run_directory}/run.id" ]]; then
+        printf 'Refusing to stop: %s is not a recorded harness run directory.\n' "$run_directory" >&2
+        return 65
+    fi
+
+    run_id="$(tr -d '[:space:]' < "${run_directory}/run.id")"
+    stop_owned_pid worker "$run_directory" "$run_id"
+    stop_owned_pid app "$run_directory" "$run_id"
+    rm -f "${run_directory}/worker.ready"
+    printf '[stage=stop] stopped run_id=%s\n' "$run_id" >> "${run_directory}/runtime.log"
+    printf 'Stopped harness backend run %s\n' "$run_id"
+}
+
+if [[ "$ACTION" == 'stop' ]]; then
+    if [[ -z "$RUN_DIR" ]]; then
+        usage >&2
+        exit 64
+    fi
+    stop_runtime "$RUN_DIR"
+    exit $?
+fi
+
+if [[ "$ACTION" != 'start' ]]; then
+    usage >&2
+    exit 64
+fi
+
+mkdir -p "$RUNS_ROOT"
+RUNS_ROOT="$(realpath "$RUNS_ROOT")"
+
+if [[ -z "$RUN_DIR" ]]; then
+    RUN_ID="$(php -r 'printf("%s-%s-4%s-%s%s-%s", bin2hex(random_bytes(4)), bin2hex(random_bytes(2)), substr(bin2hex(random_bytes(2)), 1), dechex(random_int(8, 11)), substr(bin2hex(random_bytes(2)), 1), bin2hex(random_bytes(6)));')"
+    RUN_DIR="${RUNS_ROOT}/${RUN_ID}"
+else
+    RUN_PARENT="$(realpath "$(dirname "$RUN_DIR")" 2>/dev/null || true)"
+    RUN_ID="$(basename "$RUN_DIR")"
+    if [[ "$RUN_PARENT" != "$RUNS_ROOT" ]] || ! is_uuid "$RUN_ID"; then
+        printf 'Refusing to launch: run directory must be a new UUID directory directly under %s.\n' "$RUNS_ROOT" >&2
+        exit 65
+    fi
+    RUN_DIR="${RUNS_ROOT}/${RUN_ID}"
+fi
+
+if [[ -e "$RUN_DIR" ]]; then
+    printf 'Refusing to launch: harness run directory already exists: %s\n' "$RUN_DIR" >&2
+    exit 65
+fi
+
+mkdir -p \
+    "${RUN_DIR}/bootstrap/cache" \
+    "${RUN_DIR}/storage/framework/cache/data" \
+    "${RUN_DIR}/storage/framework/sessions" \
+    "${RUN_DIR}/storage/framework/views" \
+    "${RUN_DIR}/storage/logs"
+touch "${RUN_DIR}/runtime.log" "${RUN_DIR}/app.log" "${RUN_DIR}/worker.log"
+printf '%s\n' "$RUN_ID" > "${RUN_DIR}/run.id"
+
+fail() {
+    local stage="$1"
+    local message="$2"
+    printf '[stage=%s] %s\n' "$stage" "$message" | tee -a "${RUN_DIR}/runtime.log" >&2
+    stop_runtime "$RUN_DIR" >/dev/null 2>&1 || true
+    printf 'failed\n' > "${RUN_DIR}/status"
+    exit 1
+}
+
+if [[ ! "$PORT" =~ ^[0-9]+$ ]] || ((PORT < 1024 || PORT > 65535)); then
+    fail configuration "Invalid loopback port: ${PORT}"
+fi
+
+if [[ ! "$READINESS_TIMEOUT" =~ ^[0-9]+$ ]] || ((READINESS_TIMEOUT < 1 || READINESS_TIMEOUT > 120)); then
+    fail configuration "Invalid readiness timeout: ${READINESS_TIMEOUT}"
+fi
+
+if [[ "${HARNESS_HOST:-127.0.0.1}" != '127.0.0.1' ]]; then
+    fail configuration 'Harness backend must bind to 127.0.0.1.'
+fi
+
+DB_CONNECTION_VALUE="${HARNESS_DB_CONNECTION:-${DB_CONNECTION:-sqlite}}"
+DB_DATABASE_VALUE="${HARNESS_DB_DATABASE:-${DB_DATABASE:-${RUN_DIR}/database.sqlite}}"
+
+if [[ "$DB_CONNECTION_VALUE" != 'sqlite' ]]; then
+    fail database-validation "Refusing non-SQLite database connection: ${DB_CONNECTION_VALUE}"
+fi
+
+if [[ "$DB_DATABASE_VALUE" != "${RUN_DIR}/database.sqlite" ]]; then
+    fail database-validation "Refusing database outside run directory: ${DB_DATABASE_VALUE}"
+fi
+
+if php -r '$s = @fsockopen("127.0.0.1", (int) $argv[1], $errno, $error, 0.2); if ($s) { fclose($s); exit(0); } exit(1);' "$PORT"; then
+    printf '[stage=occupied-port] port=%s is already occupied\n' "$PORT" >> "${RUN_DIR}/app.log"
+    fail occupied-port "Loopback port ${PORT} is already occupied."
+fi
+
+export APP_ENV=harness
+export APP_DEBUG=false
+export APP_KEY='base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
+export APP_URL="http://127.0.0.1:${PORT}"
+export DB_CONNECTION=sqlite
+export DB_DATABASE="$DB_DATABASE_VALUE"
+export QUEUE_CONNECTION=database
+export CACHE_STORE=array
+export SESSION_DRIVER=array
+export LOG_CHANNEL=single
+export HARNESS_RUN_ID="$RUN_ID"
+export HARNESS_RUN_DIR="$RUN_DIR"
+export HARNESS_BACKEND_PORT="$PORT"
+
+if ! php "${ROOT}/scripts/harness/initialize.php" "$DB_DATABASE_VALUE" >> "${RUN_DIR}/runtime.log" 2>&1; then
+    fail database-initialization 'Unable to initialize the run-scoped SQLite queue state.'
+fi
+
+printf '%s\n' "[stage=app-start] http://127.0.0.1:${PORT}" >> "${RUN_DIR}/app.log"
+if [[ "${HARNESS_TEST_APP_MODE:-}" == 'timeout' ]]; then
+    php -r 'sleep(120);' >> "${RUN_DIR}/app.log" 2>&1 &
+else
+    php -S "127.0.0.1:${PORT}" -t "${ROOT}/scripts/harness/public" "${ROOT}/scripts/harness/server.php" >> "${RUN_DIR}/app.log" 2>&1 &
+fi
+APP_PID=$!
+printf '%s\n' "$APP_PID" > "${RUN_DIR}/app.pid"
+# Let the guarded PHP launcher finish its exec transition before inspecting /proc.
+sleep 0.2
+
+APP_READY=0
+for ((attempt = 0; attempt < READINESS_TIMEOUT * 10; attempt++)); do
+    if ! process_belongs_to_run "$APP_PID" "$RUN_ID" "$RUN_DIR"; then
+        printf '[stage=app-readiness] app process exited prematurely\n' >> "${RUN_DIR}/app.log"
+        fail app-readiness 'Laravel harness development server exited before readiness.'
+    fi
+
+    RESPONSE="$(curl --silent --max-time 1 --header 'Accept: application/json' "http://127.0.0.1:${PORT}/__harness/ready" 2>/dev/null || true)"
+    if [[ "$RESPONSE" == *'"app":"ready"'* ]]; then
+        APP_READY=1
+        break
+    fi
+    sleep 0.1
+done
+
+if ((APP_READY == 0)); then
+    printf '[stage=app-readiness-timeout] timeout=%ss endpoint=http://127.0.0.1:%s/__harness/ready\n' "$READINESS_TIMEOUT" "$PORT" >> "${RUN_DIR}/app.log"
+    fail app-readiness-timeout 'Laravel harness development server did not become ready.'
+fi
+
+printf '%s\n' "[stage=worker-start] launching real database queue worker" >> "${RUN_DIR}/worker.log"
+if [[ "${HARNESS_TEST_WORKER_MODE:-}" == 'exit' ]]; then
+    printf '%s\n' '[stage=worker-premature-exit] simulated worker failure' >> "${RUN_DIR}/worker.log"
+    php -r 'exit(70);' >> "${RUN_DIR}/worker.log" 2>&1 &
+else
+    "${ROOT}/scripts/runtime/queue-worker" >> "${RUN_DIR}/worker.log" 2>&1 &
+fi
+WORKER_PID=$!
+printf '%s\n' "$WORKER_PID" > "${RUN_DIR}/worker.pid"
+# Let the worker wrapper either exec queue:work or emit its premature-exit log.
+sleep 0.2
+
+QUEUE_READY=0
+for ((attempt = 0; attempt < READINESS_TIMEOUT * 10; attempt++)); do
+    if ! process_belongs_to_run "$WORKER_PID" "$RUN_ID" "$RUN_DIR"; then
+        printf '[stage=worker-readiness] worker process exited prematurely\n' >> "${RUN_DIR}/worker.log"
+        fail worker-readiness 'Queue worker exited before readiness.'
+    fi
+
+    RESPONSE="$(curl --silent --max-time 1 --header 'Accept: application/json' "http://127.0.0.1:${PORT}/__harness/ready" 2>/dev/null || true)"
+    if [[ "$RESPONSE" == *'"app":"ready"'* && "$RESPONSE" == *'"queue":"ready"'* ]]; then
+        QUEUE_READY=1
+        break
+    fi
+    sleep 0.1
+done
+
+if ((QUEUE_READY == 0)); then
+    printf '[stage=worker-readiness-timeout] timeout=%ss\n' "$READINESS_TIMEOUT" >> "${RUN_DIR}/worker.log"
+    fail worker-readiness-timeout 'Queue worker did not become ready.'
+fi
+
+printf 'ready\n' > "${RUN_DIR}/status"
+printf '{"run_id":"%s","run_dir":"%s","backend_url":"http://127.0.0.1:%s","database":"%s","app_pid":%s,"worker_pid":%s}\n' \
+    "$RUN_ID" "$RUN_DIR" "$PORT" "$DB_DATABASE_VALUE" "$APP_PID" "$WORKER_PID" > "${RUN_DIR}/runtime.json"
+printf '[stage=ready] app=ready queue=ready run_id=%s\n' "$RUN_ID" >> "${RUN_DIR}/runtime.log"
+printf 'HARNESS_RUN_ID=%s\nHARNESS_RUN_DIR=%s\nHARNESS_BACKEND_URL=http://127.0.0.1:%s\n' "$RUN_ID" "$RUN_DIR" "$PORT"

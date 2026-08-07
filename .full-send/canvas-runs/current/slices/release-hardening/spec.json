@@ -1,0 +1,18 @@
+{
+  "slice_key": "release-hardening",
+  "title": "Release hardening, proving period, and handover gates",
+  "spec_path": ".full-send/canvas-runs/current/slices/release-hardening/spec.json",
+  "mandate": "Polish the v1 handover gates: release checklist for zero false-alarm flood scenario, widget stale-green prevention, external watchdog proof, push/Telegram four-week dual-send criteria before retirement, fleet rollout readiness, operator docs, and canonical harness evidence collation. Verification expectations: feature tests for release gates where automatable, component checks for final surfaced empty/error/stale states, and a full-runtime Playwright journey through the canonical harness with the queue worker running before handover.",
+  "ownership": {
+    "files": [
+      "docs/release-hardening.md",
+      "docs/watchdog-and-push-retirement.md",
+      ".full-send/canvas-runs/current/handover-checklists",
+      "tests/Feature/ReleaseHardening",
+      "tests/Component/ReleaseHardening"
+    ],
+    "migration_timestamp_range": "none"
+  },
+  "contracts": [],
+  "owned_seams": []
+}

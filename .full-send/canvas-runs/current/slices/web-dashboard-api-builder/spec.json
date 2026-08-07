@@ -1,0 +1,52 @@
+{
+  "slice_key": "web-dashboard-api-builder",
+  "title": "Inertia React dashboard, incident timelines, and API assertion builder",
+  "spec_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/spec.json",
+  "mandate": "Migrate the consumption surface from Filament to Inertia + React + shadcn/ui + Tailwind per PRD owner direction while leaving internal CRUD/admin on Filament if still present. Implement overview with the same nine numbers, filtered problem list, monitor incident timeline with durations/annotation slot, status-list maintenance banner, and API monitor assertion builder with live sample fetch, JSON-path picker, masked encrypted headers, and manual fallback on fetch/non-JSON/auth errors. Verification expectations: feature tests for web routes, sample fetch failures, masking, and timeline reads; component tests for overview/problem/timeline/builder states; and a full-runtime Playwright journey through the canonical harness with the queue worker running.",
+  "ownership": {
+    "files": [
+      "app/Domain/ApiMonitorBuilder",
+      "app/Http/Controllers/WebDashboard",
+      "app/Http/Controllers/ApiMonitorBuilderController.php",
+      "database/migrations/2026_08_06_040000-2026_08_06_049999",
+      "resources/css/checkybot-dashboard.css",
+      "resources/js/Components/CheckybotDashboard",
+      "resources/js/Pages/CheckybotDashboard",
+      "routes/web-dashboard.php",
+      "tests/Component/WebDashboard",
+      "tests/Feature/WebDashboard",
+      "tests/Unit/ApiMonitorBuilder"
+    ],
+    "migration_timestamp_range": "2026_08_06_040000-2026_08_06_049999"
+  },
+  "contracts": [
+    {
+      "consumes": "MonitorDomainContracts",
+      "from": "domain-runtime-foundation",
+      "contract": "Uses shared monitor, status, freshness, secret masking, and JSON schema contracts."
+    },
+    {
+      "consumes": "StatusSummaryReadModel",
+      "from": "domain-runtime-foundation",
+      "contract": "Overview renders the canonical nine-number summary and problem filters."
+    },
+    {
+      "consumes": "IncidentTimelineReadModel",
+      "from": "alerting-reliability-core",
+      "contract": "Monitor detail reads state transitions, durations, group membership, and annotation slots."
+    }
+  ],
+  "depends_on": [
+    "alerting-reliability-core"
+  ],
+  "owned_seams": [
+    {
+      "seam_key": "alerting-to-web-timeline",
+      "event_or_interface": "IncidentTimelineReadModel",
+      "producer_slice": "alerting-reliability-core",
+      "consumer_slice": "web-dashboard-api-builder",
+      "owner_slice": "web-dashboard-api-builder",
+      "wiring": "Web slice owns Inertia routes/controllers that bind to alerting read-model interfaces and provide harness seeders for Playwright timeline journeys."
+    }
+  ]
+}

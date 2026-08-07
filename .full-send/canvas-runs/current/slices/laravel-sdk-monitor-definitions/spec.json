@@ -1,0 +1,41 @@
+{
+  "slice_key": "laravel-sdk-monitor-definitions",
+  "title": "Laravel package monitor definition compatibility",
+  "spec_path": ".full-send/canvas-runs/current/slices/laravel-sdk-monitor-definitions/spec.json",
+  "mandate": "Adapt the existing Laravel package surface to the v1 product contracts without owning app runtime behavior: fluent/config payloads for response-time budgets, domain expiry, API assertion metadata, secure header/token masking expectations, compatible sync summaries, docs, facade docblocks, and backward-compatible tests around current uptime/SSL/API/link/OpenGraph definitions. Verification expectations: package feature tests for sync payloads and commands, component/contract tests for fluent builders and generated payload schemas, and a full-runtime Playwright journey through the canonical harness with the queue worker running.",
+  "ownership": {
+    "files": [
+      "src",
+      "config/checkybot-laravel.php",
+      "stubs",
+      "README.md",
+      "CHANGELOG.md",
+      "tests/Feature/FluentApiSyncTest.php",
+      "tests/Feature/SyncCommandTest.php",
+      "tests/Unit/CheckRegistryTest.php",
+      "tests/Unit/CheckybotClientTest.php",
+      "tests/Unit/ConfigValidatorTest.php",
+      "tests/Unit/Checks",
+      "tests/Unit/ConfigTest.php"
+    ],
+    "migration_timestamp_range": "none"
+  },
+  "contracts": [
+    {
+      "consumes": "CheckSyncPayloadContract",
+      "from": "domain-runtime-foundation",
+      "contract": "Serializes package-defined monitor definitions into the versioned Checkybot sync payload shape."
+    }
+  ],
+  "depends_on": [],
+  "owned_seams": [
+    {
+      "seam_key": "sdk-to-check-sync-contract",
+      "event_or_interface": "CheckSyncPayloadContract",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "laravel-sdk-monitor-definitions",
+      "owner_slice": "laravel-sdk-monitor-definitions",
+      "wiring": "SDK slice owns package serializers and command/client contract tests that prove emitted payloads match the foundation sync schema before hitting /api/v1/projects/{id}/checks/sync."
+    }
+  ]
+}

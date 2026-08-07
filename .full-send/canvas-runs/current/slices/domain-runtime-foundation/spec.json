@@ -1,0 +1,113 @@
+{
+  "slice_key": "domain-runtime-foundation",
+  "title": "Shared monitor domain, runtime seams, and contracts",
+  "spec_path": ".full-send/canvas-runs/current/slices/domain-runtime-foundation/spec.json",
+  "mandate": "Hoist shared primitives required by multiple delivery slices: monitor identity/type taxonomy for servers/websites/APIs, healthy/warn/down/recovering state vocabulary, incident transition history schema, status-summary read-model contract, encrypted secret/token value objects, redaction utilities, outbox/queue/scheduler registration conventions, API resources, and test fakes. Own /api/status-summary as the canonical nine-number read contract with freshness metadata so web, mobile, and widget do not duplicate it. Verification expectations: foundation feature tests for models/resources/outbox fakes, component contract tests for shared API/client DTOs, and a full-runtime Playwright journey through the canonical harness with the queue worker running.",
+  "ownership": {
+    "files": [
+      "app/Domain/Monitoring/Foundation",
+      "app/Domain/Security/Foundation",
+      "app/Http/Controllers/StatusSummaryController.php",
+      "app/Http/Resources/MonitoringFoundation",
+      "app/Models/MonitorState.php",
+      "app/Models/MonitorTransition.php",
+      "app/Models/OutboxEvent.php",
+      "app/Models/ProjectApiToken.php",
+      "config/checkybot.php",
+      "database/migrations/2026_08_06_000000-2026_08_06_009999",
+      "packages/contracts",
+      "routes/status-summary.php",
+      "tests/Feature/MonitoringFoundation",
+      "tests/Unit/MonitoringFoundation"
+    ],
+    "migration_timestamp_range": "2026_08_06_000000-2026_08_06_009999"
+  },
+  "contracts": [
+    {
+      "provides": "MonitorDomainContracts",
+      "to": [
+        "alerting-reliability-core",
+        "push-mobile-widget-status",
+        "agent-v2-expanded-monitors",
+        "web-dashboard-api-builder",
+        "laravel-sdk-monitor-definitions",
+        "ai-incident-annotations"
+      ],
+      "contract": "Typed monitor identity, state, severity, transition, status-summary, encrypted secret, redaction, and outbox interfaces."
+    },
+    {
+      "provides": "StatusSummaryReadModel",
+      "to": [
+        "push-mobile-widget-status",
+        "web-dashboard-api-builder"
+      ],
+      "contract": "GET /api/status-summary returns the nine counts by monitor type and state plus updated_at/stale flags."
+    }
+  ],
+  "owned_seams": [
+    {
+      "seam_key": "monitor-domain-contracts",
+      "event_or_interface": "MonitorDomainContracts",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "alerting-reliability-core",
+      "owner_slice": "domain-runtime-foundation",
+      "wiring": "Autoloaded foundation DTOs, interfaces, migrations, API resources, and fake implementations are registered by the foundation module provider; consumers bind against these contracts without redefining state vocabulary."
+    },
+    {
+      "seam_key": "status-summary-to-mobile-widget",
+      "event_or_interface": "StatusSummaryReadModel",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "push-mobile-widget-status",
+      "owner_slice": "domain-runtime-foundation",
+      "wiring": "Foundation-owned /api/status-summary route, controller, resource, auth policy, and harness fixture expose the nine-number summary and freshness contract consumed by the Expo app and WidgetKit extension."
+    },
+    {
+      "seam_key": "status-summary-to-web",
+      "event_or_interface": "StatusSummaryReadModel",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "web-dashboard-api-builder",
+      "owner_slice": "domain-runtime-foundation",
+      "wiring": "Foundation-owned /api/status-summary route, controller, resource, auth policy, and harness fixture expose the same nine-number summary to the Inertia React overview."
+    },
+    {
+      "seam_key": "monitor-domain-to-push",
+      "event_or_interface": "MonitorDomainContracts",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "push-mobile-widget-status",
+      "owner_slice": "domain-runtime-foundation",
+      "wiring": "Shared contracts package exports generated TypeScript/PHP schemas for status, severity, freshness, and monitor filters used by push/mobile without redefining enums."
+    },
+    {
+      "seam_key": "monitor-domain-to-agent",
+      "event_or_interface": "MonitorDomainContracts",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "agent-v2-expanded-monitors",
+      "owner_slice": "domain-runtime-foundation",
+      "wiring": "Shared PHP contracts and fake monitor identifiers are registered for agent ingest and evaluator jobs; the agent slice only implements producers."
+    },
+    {
+      "seam_key": "monitor-domain-to-web",
+      "event_or_interface": "MonitorDomainContracts",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "web-dashboard-api-builder",
+      "owner_slice": "domain-runtime-foundation",
+      "wiring": "Shared contracts package exports transition, incident, and secret-masking schemas for web routes and components."
+    },
+    {
+      "seam_key": "monitor-domain-to-sdk",
+      "event_or_interface": "CheckSyncPayloadContract",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "laravel-sdk-monitor-definitions",
+      "owner_slice": "domain-runtime-foundation",
+      "wiring": "Foundation contract package defines versioned check-sync payload schema and accepted monitor-type keys that the Laravel package serializes against."
+    },
+    {
+      "seam_key": "monitor-domain-to-ai",
+      "event_or_interface": "RedactionAndIncidentContracts",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "ai-incident-annotations",
+      "owner_slice": "domain-runtime-foundation",
+      "wiring": "Foundation redaction service and incident DTO contracts are registered as injectable interfaces for AI annotation jobs."
+    }
+  ]
+}
