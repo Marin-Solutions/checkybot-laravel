@@ -1,25 +1,25 @@
 {
   "result": "passed",
-  "run_id": "28dfa8ea-54ab-4db2-9691-06ff9de20885",
+  "run_id": "91516bb0-efee-4f7f-9292-09ff20b5ae92",
   "real_queue_worker": true,
   "ingestion": [
     {
-      "operation_id": "ac8c7d59-5cc9-44e1-abec-0bf124dfcea0",
+      "operation_id": "c673beda-5eb9-40dd-9ac9-5efd1df35d18",
       "status": 202
     },
     {
-      "operation_id": "00ebdd3f-0ce0-409a-bb1a-26328a43d91a",
+      "operation_id": "0af27401-de55-49a4-a353-7b6ce8e0dc60",
       "status": 202
     },
     {
-      "operation_id": "78b39411-e83c-402e-b81c-cb6e445cefe2",
+      "operation_id": "e3f3f929-68a7-4c84-96f7-7cf9f34cfbe7",
       "status": 202
     }
   ],
   "grouped_intent": {
-    "operation_id": "8dcd8d2b-9d67-5d35-aa76-29a098467e87",
+    "operation_id": "1969a50e-eac6-5529-9a48-a6705e575746",
     "project_uuid": "11111111-1111-4111-8111-111111111111",
-    "group_id": "137490df-2f89-469e-af7e-c00cf38adb7f",
+    "group_id": "d397998f-53f5-498f-95be-a687d78e7200",
     "phase": "incident",
     "severity": "critical",
     "monitor_uuids": [
@@ -29,7 +29,7 @@
   },
   "relay_exit": 0,
   "push_receipt": {
-    "operation_id": "8dcd8d2b-9d67-5d35-aa76-29a098467e87",
+    "operation_id": "1969a50e-eac6-5529-9a48-a6705e575746",
     "listener_status": "processed",
     "expo_deliveries": [
       {
@@ -44,7 +44,7 @@
     ],
     "legacy_webhook": "accepted",
     "reliability_recorded": true,
-    "processed_at": "2026-08-07T16:05:00+00:00"
+    "processed_at": "2026-08-07T16:24:22+00:00"
   },
   "status_summary_http": 200,
   "status_summary": {
@@ -66,7 +66,7 @@
           "down": 0
         }
       },
-      "updated_at": "2026-08-07T16:03:53.000000Z",
+      "updated_at": "2026-08-07T16:23:15.000000Z",
       "stale": false
     }
   },
