@@ -19,6 +19,7 @@ use MarinSolutions\CheckybotLaravel\Models\Concerns\HasPublicUuid;
  * @property LifecycleState $state
  * @property Severity $severity
  * @property CarbonImmutable $observed_at
+ * @property CarbonImmutable|null $entered_at
  */
 final class MonitorState extends Model
 {
@@ -28,7 +29,13 @@ final class MonitorState extends Model
 
     protected function casts(): array
     {
-        return ['monitor_type' => MonitorType::class, 'state' => LifecycleState::class, 'severity' => Severity::class, 'observed_at' => 'immutable_datetime'];
+        return [
+            'monitor_type' => MonitorType::class,
+            'state' => LifecycleState::class,
+            'severity' => Severity::class,
+            'observed_at' => 'immutable_datetime',
+            'entered_at' => 'immutable_datetime',
+        ];
     }
 
     public function scopeForProject(Builder $query, string $projectId): Builder

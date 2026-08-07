@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MarinSolutions\CheckybotLaravel\Models;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use LogicException;
@@ -12,17 +13,30 @@ use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Contracts\Monit
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Contracts\Severity;
 use MarinSolutions\CheckybotLaravel\Models\Concerns\HasPublicUuid;
 
+/**
+ * @property string $public_id
+ * @property string $operation_id
+ * @property LifecycleState $from_state
+ * @property LifecycleState $to_state
+ * @property Severity $severity
+ * @property CarbonImmutable $occurred_at
+ * @property CarbonImmutable|null $entered_at
+ * @property string|null $reason_code
+ */
 final class MonitorTransition extends Model
 {
     use HasPublicUuid;
 
     protected $guarded = ['id'];
 
-    protected static function booted(): void
+    protected function performUpdate(Builder $query)
     {
-        $immutable = static fn (): never => throw new LogicException('Monitor transition history is immutable.');
-        self::updating($immutable);
-        self::deleting($immutable);
+        throw new LogicException('Monitor transition history is immutable.');
+    }
+
+    protected function performDeleteOnModel()
+    {
+        throw new LogicException('Monitor transition history is immutable.');
     }
 
     protected function casts(): array
@@ -34,6 +48,7 @@ final class MonitorTransition extends Model
             'severity' => Severity::class,
             'monitor_filter' => 'array',
             'occurred_at' => 'immutable_datetime',
+            'entered_at' => 'immutable_datetime',
         ];
     }
 
