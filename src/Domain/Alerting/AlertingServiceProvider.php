@@ -10,12 +10,15 @@ use Illuminate\Support\ServiceProvider;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Actions\IngestMonitorResult;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Console\DispatchDueIncidentGroups;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Console\DispatchDuePullRechecks;
+use MarinSolutions\CheckybotLaravel\Domain\Alerting\Console\PingExternalWatchdog;
+use MarinSolutions\CheckybotLaravel\Domain\Alerting\Contracts\HeartbeatClient;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Contracts\MonitorResultIngestionInterface;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Contracts\PullRecheckProducer;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Http\AlertingReceiptController;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Http\AlertingResultController;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Notifications\AlertingEventDispatcher;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Support\DeterministicPullRecheckProducer;
+use MarinSolutions\CheckybotLaravel\Domain\Alerting\Support\LaravelHeartbeatClient;
 use MarinSolutions\CheckybotLaravel\Domain\Maintenance\MaintenanceServiceProvider;
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Delivery\FoundationEventDispatcher;
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Http\RequireLoopback;
@@ -24,7 +27,9 @@ final class AlertingServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->mergeConfigFrom(__DIR__.'/watchdog.php', 'checkybot.alerting.watchdog');
         $this->app->register(MaintenanceServiceProvider::class);
+        $this->app->bind(HeartbeatClient::class, LaravelHeartbeatClient::class);
         $this->app->bind(MonitorResultIngestionInterface::class, IngestMonitorResult::class);
         $this->app->singleton(DeterministicPullRecheckProducer::class);
         $this->app->bind(PullRecheckProducer::class, static fn ($app): PullRecheckProducer => $app->make(DeterministicPullRecheckProducer::class));
@@ -39,13 +44,21 @@ final class AlertingServiceProvider extends ServiceProvider
                 ->name('checkybot:alerting-groups')
                 ->everySecond()
                 ->withoutOverlapping();
+            $schedule->command('checkybot:watchdog')
+                ->name('checkybot:watchdog')
+                ->everyMinute()
+                ->withoutOverlapping(1);
         });
     }
 
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
-            $this->commands([DispatchDueIncidentGroups::class, DispatchDuePullRechecks::class]);
+            $this->commands([
+                DispatchDueIncidentGroups::class,
+                DispatchDuePullRechecks::class,
+                PingExternalWatchdog::class,
+            ]);
         }
 
         if ($this->app->environment(['testing', 'harness'])) {
