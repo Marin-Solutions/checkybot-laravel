@@ -10,7 +10,8 @@
     "test": "jest --config jest.config.cjs --runInBand",
     "build:ios": "expo export --platform ios --output-dir build/ios --clear",
     "build:android": "expo export --platform android --output-dir build/android --clear",
-    "build:web:harness": "EXPO_PUBLIC_CHECKYBOT_HARNESS=true expo export --platform web --output-dir ../build/harness-fixture --clear"
+    "build:web:harness": "EXPO_PUBLIC_CHECKYBOT_HARNESS=true expo export --platform web --output-dir ../build/harness-fixture --clear",
+    "widget:config:verify": "node scripts/verify-status-widget-config.mjs"
   },
   "dependencies": {
     "expo": "~54.0.30",

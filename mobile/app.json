@@ -9,7 +9,8 @@
     "plugins": [
       "expo-router",
       ["expo-secure-store", {"configureAndroidBackup": true}],
-      "expo-notifications"
+      "expo-notifications",
+      ["./plugins/withStatusWidget", {"deploymentTarget": "17.0"}]
     ],
     "ios": {
       "supportsTablet": false,
