@@ -5,6 +5,7 @@ namespace MarinSolutions\CheckybotLaravel;
 use Illuminate\Support\Facades\Route;
 use MarinSolutions\CheckybotLaravel\Commands\CheckybotCommand;
 use MarinSolutions\CheckybotLaravel\Domain\Agent\AgentServiceProvider;
+use MarinSolutions\CheckybotLaravel\Domain\AiAnnotations\AiAnnotationsServiceProvider;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\AlertingServiceProvider;
 use MarinSolutions\CheckybotLaravel\Domain\ExpandedChecks\ExpandedChecksServiceProvider;
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Http\RequireLoopback;
@@ -30,6 +31,7 @@ class CheckybotLaravelServiceProvider extends PackageServiceProvider
         $this->app->register(MonitoringFoundationServiceProvider::class);
         $this->app->register(AlertingServiceProvider::class);
         $this->app->register(AgentServiceProvider::class);
+        $this->app->register(AiAnnotationsServiceProvider::class);
         $this->app->register(ExpandedChecksServiceProvider::class);
         $this->app->register(PushServiceProvider::class);
 
