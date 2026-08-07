@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --checkybot-background: 248 250 252;
+    --checkybot-foreground: 15 23 42;
+    --checkybot-card: 255 255 255;
+    --checkybot-border: 226 232 240;
+    --checkybot-focus: 2 132 199;
+    --checkybot-healthy: 4 120 87;
+    --checkybot-warning: 146 64 14;
+    --checkybot-critical: 190 18 60;
+    --checkybot-maintenance: 30 27 75;
+    color-scheme: light;
+  }
+
+  *, ::before, ::after {
+    border-color: rgb(var(--checkybot-border));
+  }
+
+  body {
+    margin: 0;
+    background: rgb(var(--checkybot-background));
+    color: rgb(var(--checkybot-foreground));
+    font-family: ui-sans-serif, system-ui, sans-serif;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgb(var(--checkybot-focus));
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
