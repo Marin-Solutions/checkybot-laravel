@@ -11,6 +11,7 @@ use MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessIncidentTransiti
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Models\AlertingMonitorRuntime;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Models\AlertingResult;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Models\PullRetryRequest;
+use MarinSolutions\CheckybotLaravel\Domain\Maintenance\Support\MaintenanceSilencer;
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Contracts\FoundationContract;
 use MarinSolutions\CheckybotLaravel\Models\MonitorState;
 use MarinSolutions\CheckybotLaravel\Models\MonitorTransition;
@@ -18,8 +19,10 @@ use MarinSolutions\CheckybotLaravel\Models\OutboxEvent;
 use Ramsey\Uuid\Uuid;
 use Throwable;
 
-final class ProcessAcceptedMonitorResult
+final readonly class ProcessAcceptedMonitorResult
 {
+    public function __construct(private MaintenanceSilencer $silencer) {}
+
     public function execute(string $operationId): void
     {
         $this->serializedTransaction(function () use ($operationId): void {
@@ -192,6 +195,7 @@ final class ProcessAcceptedMonitorResult
             'monitor_filter' => $filter,
             'occurred_at' => $result->observed_at,
             'entered_at' => $result->observed_at,
+            'maintenance_suppressed' => $this->silencer->isSilencedNow($result->project_id),
         ])->save();
 
         $state->setAttribute('state', $to);

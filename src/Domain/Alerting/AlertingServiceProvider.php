@@ -16,6 +16,7 @@ use MarinSolutions\CheckybotLaravel\Domain\Alerting\Http\AlertingReceiptControll
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Http\AlertingResultController;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Notifications\AlertingEventDispatcher;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Support\DeterministicPullRecheckProducer;
+use MarinSolutions\CheckybotLaravel\Domain\Maintenance\MaintenanceServiceProvider;
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Delivery\FoundationEventDispatcher;
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Http\RequireLoopback;
 
@@ -23,6 +24,7 @@ final class AlertingServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->register(MaintenanceServiceProvider::class);
         $this->app->bind(MonitorResultIngestionInterface::class, IngestMonitorResult::class);
         $this->app->singleton(DeterministicPullRecheckProducer::class);
         $this->app->bind(PullRecheckProducer::class, static fn ($app): PullRecheckProducer => $app->make(DeterministicPullRecheckProducer::class));

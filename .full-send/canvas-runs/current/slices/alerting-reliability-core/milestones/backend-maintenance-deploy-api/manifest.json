@@ -1,0 +1,1 @@
+{"targets":["backend"],"verification":[{"target":"backend","cwd":".","commands":["./vendor/bin/pest tests/Feature/MaintenanceMode/MaintenanceModeQueueRuntimeTest.php --compact","./vendor/bin/pest --compact","composer analyse -- --no-progress"]}],"artifacts":["test_results"]}
