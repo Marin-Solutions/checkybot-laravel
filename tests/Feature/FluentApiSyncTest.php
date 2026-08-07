@@ -5,7 +5,9 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
 use MarinSolutions\CheckybotLaravel\CheckRegistry;
+use MarinSolutions\CheckybotLaravel\Exceptions\CheckybotSyncException;
 use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
 use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
 
@@ -199,19 +201,108 @@ it('sends correct payload structure from fluent api', function () {
 
     $this->artisan('checkybot:sync')->assertExitCode(0);
 
-    expect($capturedPayload['uptime_checks'])->toHaveCount(1)
-        ->and($capturedPayload['uptime_checks'][0]['name'])->toBe('homepage')
-        ->and($capturedPayload['uptime_checks'][0]['max_redirects'])->toBe(5)
-        ->and($capturedPayload['ssl_checks'])->toHaveCount(1)
-        ->and($capturedPayload['api_checks'])->toHaveCount(1)
-        ->and($capturedPayload['api_checks'][0]['headers']['Authorization'])->toBe('Bearer secret')
-        ->and($capturedPayload['api_checks'][0]['assertions'])->toHaveCount(1)
-        ->and($capturedPayload['link_checks'])->toHaveCount(1)
-        ->and($capturedPayload['link_checks'][0]['max_depth'])->toBe(1)
-        ->and($capturedPayload['link_checks'][0]['exclude_paths'])->toBe(['/admin/*'])
-        ->and($capturedPayload['open_graph_checks'])->toHaveCount(1)
-        ->and($capturedPayload['open_graph_checks'][0]['required_tags'])->toBe(['og:title', 'og:image']);
+    expect($capturedPayload['contract_version'])->toBe('check-sync.v1')
+        ->and($capturedPayload['uptime'])->toHaveCount(1)
+        ->and($capturedPayload['uptime'][0]['name'])->toBe('homepage')
+        ->and($capturedPayload['uptime'][0]['max_redirects'])->toBe(5)
+        ->and($capturedPayload['ssl'])->toHaveCount(1)
+        ->and($capturedPayload['api'])->toHaveCount(1)
+        ->and($capturedPayload['api'][0]['headers']['Authorization'])->toBe('Bearer secret')
+        ->and($capturedPayload['api'][0]['assertions'])->toHaveCount(1)
+        ->and($capturedPayload['dead_links'])->toHaveCount(1)
+        ->and($capturedPayload['dead_links'][0]['max_depth'])->toBe(1)
+        ->and($capturedPayload['dead_links'][0]['exclude_paths'])->toBe(['/admin/*'])
+        ->and($capturedPayload['open_graph'])->toHaveCount(1)
+        ->and($capturedPayload['open_graph'][0]['required_tags'])->toBe(['og:title', 'og:image'])
+        ->and($capturedPayload['domain_expiry'])->toBeEmpty()
+        ->and($capturedPayload['response_time_budget'])->toBeEmpty();
 });
+
+it('keeps a fixed credential corpus only in the captured outbound HTTPS body', function (): void {
+    $secrets = [
+        'authorization-corpus-7f3d',
+        'bearer-corpus-91aa',
+        'cookie-corpus-245c',
+        'custom-header-corpus-c880',
+    ];
+    Log::spy();
+
+    $check = Checkybot::api('secret-probe')
+        ->url('https://example.com/private')
+        ->headers([
+            'Authorization' => $secrets[0],
+            'X-Bearer-Token' => $secrets[1],
+            'Cookie' => $secrets[2],
+            'X-Custom-Secret' => $secrets[3],
+        ])
+        ->everyMinute();
+
+    Artisan::call('checkybot:sync', ['--dry-run' => true]);
+    $dryRun = Artisan::output();
+
+    ob_start();
+    var_dump($check, app(CheckRegistry::class));
+    $debug = (string) ob_get_clean();
+    $safeSerialization = json_encode([$check, app(CheckRegistry::class)], JSON_THROW_ON_ERROR)
+        .serialize($check).serialize(app(CheckRegistry::class));
+    $snapshot = json_encode($check->toSafeArray(), JSON_THROW_ON_ERROR);
+    $integrationEvidence = json_encode(['name' => $check->getName(), 'contract_version' => 'check-sync.v1'], JSON_THROW_ON_ERROR);
+
+    $capturedBody = null;
+    $capturedUri = null;
+    $successMock = new MockHandler([
+        function ($request) use (&$capturedBody, &$capturedUri) {
+            $capturedBody = (string) $request->getBody();
+            $capturedUri = (string) $request->getUri();
+
+            return new Response(200, [], json_encode([
+                'message' => 'Success',
+                'summary' => ['api' => ['created' => 1, 'updated' => 0, 'deleted' => 0]],
+            ]));
+        },
+    ]);
+    $successStack = HandlerStack::create($successMock);
+    $this->app->instance(CheckybotClient::class, new CheckybotClient(
+        baseUrl: 'https://capture.example',
+        apiKey: 'non-corpus-api-key',
+        projectId: 'project',
+        client: new Client(['base_uri' => 'https://capture.example', 'handler' => $successStack]),
+    ));
+
+    Artisan::call('checkybot:sync');
+    $summary = Artisan::output();
+
+    $failureText = implode(' | ', $secrets);
+    $failureMock = new MockHandler([new Response(422, [], json_encode([
+        'message' => $failureText,
+        'errors' => ['api.0.headers' => [$failureText]],
+    ]))]);
+    $failingClient = new CheckybotClient(
+        baseUrl: 'https://capture.example',
+        apiKey: 'non-corpus-api-key',
+        projectId: 'project',
+        client: new Client(['base_uri' => 'https://capture.example', 'handler' => HandlerStack::create($failureMock)]),
+    );
+    $exceptionText = '';
+    try {
+        $failingClient->syncChecks(app(CheckRegistry::class)->toArray());
+    } catch (CheckybotSyncException $exception) {
+        $exceptionText = $exception->getMessage();
+    }
+
+    foreach ($secrets as $secret) {
+        expect($capturedBody)->toContain($secret);
+        foreach ([$dryRun, $summary, $exceptionText, $debug, $safeSerialization, $snapshot, $integrationEvidence] as $surface) {
+            expect($surface)->not->toContain($secret);
+        }
+    }
+    expect($capturedUri)->toStartWith('https://capture.example/');
+    Log::shouldHaveReceived('error')->withArgs(function (string $message, array $context) use ($secrets): bool {
+        $encoded = $message.json_encode($context);
+
+        return collect($secrets)->every(fn (string $secret): bool => ! str_contains($encoded, $secret));
+    })->once();
+})->group('AC-laravel-sdk-monitor-definitions-3');
 
 it('falls back to config when no fluent checks defined', function () {
     // Only config, no fluent API

@@ -31,7 +31,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | Define your monitoring checks below. Each check must have a unique name
-    | within its type (uptime, ssl, api, dead_links, open_graph). Names are
+    | within its type (uptime, ssl, api, dead_links, open_graph,
+    | domain_expiry, response_time_budget). Names are
     | used to identify checks during sync operations.
     |
     | Common intervals:
@@ -157,6 +158,27 @@ return [
             //     'url' => env('APP_URL'),
             //     'interval' => '1d',
             //     'required_tags' => ['og:title', 'og:description', 'og:image'],
+            // ],
+        ],
+
+        /* Domain expiry checks default to warning 30 days before expiry. */
+        'domain_expiry' => [
+            // [
+            //     'name' => 'primary-domain-expiry',
+            //     'url' => env('APP_URL'),
+            //     'interval' => '1d',
+            //     'warn_days' => 30,
+            // ],
+        ],
+
+        /* Response-time budgets default to p95 <= 2000 milliseconds. */
+        'response_time_budget' => [
+            // [
+            //     'name' => 'homepage-p95',
+            //     'url' => env('APP_URL'),
+            //     'interval' => '5m',
+            //     'percentile' => 95,
+            //     'budget_ms' => 2000,
             // ],
         ],
     ],

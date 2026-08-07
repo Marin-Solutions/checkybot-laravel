@@ -3,436 +3,171 @@
 use MarinSolutions\CheckybotLaravel\CheckRegistry;
 use MarinSolutions\CheckybotLaravel\ConfigValidator;
 
-beforeEach(function () {
+beforeEach(function (): void {
     $this->validator = new ConfigValidator;
+    $this->credentials = ['api_key' => 'test-key', 'project_id' => 'project'];
 });
 
-it('returns valid when api_key and project_id are present', function () {
-    $config = [
+function sdkConfigDefinition(string $type, array $check): array
+{
+    return [
         'api_key' => 'test-key',
-        'project_id' => '1',
-        'checks' => ['uptime' => [], 'ssl' => [], 'api' => [], 'dead_links' => [], 'open_graph' => []],
+        'project_id' => 'project',
+        'checks' => [$type => [$check]],
     ];
+}
 
-    $result = $this->validator->validate($config);
+it('serializes equivalent fluent and config new definitions identically with defaults', function (): void {
+    $registry = new CheckRegistry;
+    $registry->domainExpiry('domain')->url('https://example.com')->daily();
+    $registry->responseTimeBudget('budget')->url('https://example.com')->everyFiveMinutes();
 
-    expect($result['valid'])->toBeTrue()
-        ->and($result['errors'])->toBeEmpty();
-});
+    $config = $this->credentials + ['checks' => [
+        'domain_expiry' => [['name' => 'domain', 'url' => 'https://example.com', 'interval' => '1d']],
+        'response_time_budget' => [['name' => 'budget', 'url' => 'https://example.com', 'interval' => '5m']],
+    ]];
 
-it('returns error when api_key is missing', function () {
-    $config = [
-        'api_key' => null,
-        'project_id' => '1',
-        'checks' => ['uptime' => [], 'ssl' => [], 'api' => [], 'dead_links' => [], 'open_graph' => []],
-    ];
+    expect($this->validator->validateWithRegistry($this->credentials, $registry)['valid'])->toBeTrue()
+        ->and($this->validator->validate($config)['valid'])->toBeTrue()
+        ->and($registry->toArray())->toBe($this->validator->transformPayload($config))
+        ->and($registry->toArray()['domain_expiry'][0]['warn_days'])->toBe(30)
+        ->and($registry->toArray()['response_time_budget'][0])->toMatchArray(['percentile' => 95, 'budget_ms' => 2000]);
+})->group('AC-laravel-sdk-monitor-definitions-1');
 
-    $result = $this->validator->validate($config);
+it('preserves valid explicit thresholds in fluent and config definitions', function (): void {
+    $registry = new CheckRegistry;
+    $registry->domainExpiry('domain')->url('https://example.com')->daily()->warnDays(60);
+    $registry->responseTimeBudget('budget')->url('https://example.com')->everyMinute()->percentile(99)->budgetMs(850);
 
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'])->toContain('CHECKYBOT_API_KEY is not configured');
-});
+    $config = $this->credentials + ['checks' => [
+        'domain_expiry' => [['name' => 'domain', 'url' => 'https://example.com', 'interval' => '1d', 'warn_days' => 60]],
+        'response_time_budget' => [['name' => 'budget', 'url' => 'https://example.com', 'interval' => '1m', 'percentile' => 99, 'budget_ms' => 850]],
+    ]];
 
-it('returns error when project_id is missing', function () {
-    $config = [
-        'api_key' => 'test-key',
-        'project_id' => null,
-        'checks' => ['uptime' => [], 'ssl' => [], 'api' => [], 'dead_links' => [], 'open_graph' => []],
-    ];
+    expect($this->validator->validateWithRegistry($this->credentials, $registry)['valid'])->toBeTrue()
+        ->and($this->validator->validate($config)['valid'])->toBeTrue()
+        ->and($registry->toArray())->toBe($this->validator->transformPayload($config));
+})->group('AC-laravel-sdk-monitor-definitions-1');
 
-    $result = $this->validator->validate($config);
+it('rejects duplicate names independently for every config type', function (string $type): void {
+    $check = ['name' => 'duplicate', 'url' => 'https://example.com', 'interval' => '5m'];
+    $config = $this->credentials + ['checks' => [$type => [$check, $check]]];
 
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'])->toContain('CHECKYBOT_PROJECT_ID is not configured');
-});
+    expect($this->validator->validate($config)['errors'])->toContain("Duplicate {$type} check names found: duplicate");
+})->with(['uptime', 'ssl', 'api', 'dead_links', 'open_graph', 'domain_expiry', 'response_time_budget'])
+    ->group('AC-laravel-sdk-monitor-definitions-4');
 
-it('returns error for duplicate uptime check names', function () {
-    $config = [
-        'api_key' => 'test-key',
-        'project_id' => '1',
-        'checks' => [
-            'uptime' => [
-                ['name' => 'homepage', 'url' => 'https://example.com', 'interval' => '5m'],
-                ['name' => 'homepage', 'url' => 'https://example2.com', 'interval' => '5m'],
-            ],
-            'ssl' => [],
-            'api' => [],
-            'dead_links' => [],
-            'open_graph' => [],
-        ],
-    ];
+it('rejects duplicate names independently for every fluent type', function (string $factory, string $type): void {
+    $registry = new CheckRegistry;
+    $registry->{$factory}('duplicate')->url('https://example.com');
+    $registry->{$factory}('duplicate')->url('https://example.com');
 
-    $result = $this->validator->validate($config);
+    expect($this->validator->validateWithRegistry($this->credentials, $registry)['errors'])
+        ->toContain("Duplicate {$type} check names found: duplicate");
+})->with([
+    ['uptime', 'uptime'], ['ssl', 'ssl'], ['api', 'api'], ['links', 'dead_links'],
+    ['openGraph', 'open_graph'], ['domainExpiry', 'domain_expiry'], ['responseTimeBudget', 'response_time_budget'],
+])->group('AC-laravel-sdk-monitor-definitions-4');
 
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'][0])->toContain('Duplicate uptime check names');
-});
+it('rejects invalid URLs and intervals from config before serialization', function (string $url, string $interval): void {
+    $result = $this->validator->validate(sdkConfigDefinition('uptime', [
+        'name' => 'invalid', 'url' => $url, 'interval' => $interval,
+    ]));
 
-it('transforms payload correctly', function () {
-    $config = [
-        'checks' => [
-            'uptime' => [['name' => 'test', 'url' => 'https://example.com', 'interval' => '5m']],
-            'ssl' => [['name' => 'ssl-test', 'url' => 'https://example.com', 'interval' => '1d']],
-            'api' => [],
-            'dead_links' => [['name' => 'links-test', 'url' => 'https://example.com', 'interval' => '1d']],
-            'open_graph' => [['name' => 'og-test', 'url' => 'https://example.com', 'interval' => '1d']],
-        ],
-    ];
+    expect($result['valid'])->toBeFalse();
+})->with([
+    ['not-a-url', '5m'],
+    ['ftp://example.com', '5m'],
+    ['javascript://example.com/%0Aalert(1)', '5m'],
+    ['https://example.com', '0'],
+    ['https://example.com', '5minutes'],
+    ['https://example.com', ' 5m'],
+    ['https://example.com', '5M'],
+])->group('AC-laravel-sdk-monitor-definitions-4');
+
+it('rejects invalid URLs and intervals from fluent definitions', function (string $url, string $interval): void {
+    $registry = new CheckRegistry;
+    $registry->uptime('invalid')->url($url)->every($interval);
+
+    expect($this->validator->validateWithRegistry($this->credentials, $registry)['valid'])->toBeFalse();
+})->with([
+    ['not-a-url', '5m'],
+    ['ftp://example.com', '5m'],
+    ['https://example.com', 'never'],
+])->group('AC-laravel-sdk-monitor-definitions-4');
+
+it('rejects out-of-range config thresholds and api options', function (string $type, string $field, mixed $value): void {
+    $check = ['name' => 'invalid', 'url' => 'https://example.com', 'interval' => '5m', $field => $value];
+
+    expect($this->validator->validate(sdkConfigDefinition($type, $check))['valid'])->toBeFalse();
+})->with([
+    ['domain_expiry', 'warn_days', 0],
+    ['domain_expiry', 'warn_days', 366],
+    ['response_time_budget', 'percentile', 0],
+    ['response_time_budget', 'percentile', 101],
+    ['response_time_budget', 'budget_ms', 0],
+    ['response_time_budget', 'budget_ms', 3_600_001],
+    ['api', 'expected_status', 99],
+    ['api', 'expected_status', 600],
+    ['api', 'max_latency_ms', 0],
+    ['api', 'max_latency_ms', 3_600_001],
+    ['api', 'retry_count', -1],
+    ['api', 'retry_count', 11],
+])->group('AC-laravel-sdk-monitor-definitions-4');
+
+it('rejects out-of-range fluent thresholds at the local boundary', function (): void {
+    $registry = new CheckRegistry;
+    $registry->domainExpiry('domain')->url('https://example.com')->warnDays(0);
+    $registry->responseTimeBudget('budget')->url('https://example.com')->percentile(101)->budgetMs(0);
+
+    expect($this->validator->validateWithRegistry($this->credentials, $registry)['valid'])->toBeFalse();
+    expect(fn () => $registry->api('status')->expectStatus(99))->toThrow(InvalidArgumentException::class);
+    expect(fn () => $registry->api('latency')->maxLatency(0))->toThrow(InvalidArgumentException::class);
+    expect(fn () => $registry->api('retry')->retries(11))->toThrow(InvalidArgumentException::class);
+})->group('AC-laravel-sdk-monitor-definitions-4');
+
+it('rejects invalid canonical assertion kind operator path and operand combinations', function (array $assertion): void {
+    $config = sdkConfigDefinition('api', [
+        'name' => 'api', 'url' => 'https://example.com', 'interval' => '5m', 'assertions' => [$assertion],
+    ]);
+
+    expect($this->validator->validate($config)['valid'])->toBeFalse();
+})->with([
+    [['kind' => 'unknown', 'operator' => 'equals', 'operand' => 200]],
+    [['kind' => 'status', 'operator' => 'less_than', 'operand' => 200]],
+    [['kind' => 'status', 'operator' => 'equals', 'operand' => '200']],
+    [['kind' => 'latency', 'operator' => 'equals', 'operand' => 100]],
+    [['kind' => 'latency', 'operator' => 'less_than_or_equal', 'operand' => -1]],
+    [['kind' => 'json_path', 'path' => '$..secret', 'operator' => 'exists']],
+    [['kind' => 'json_path', 'path' => '$.id', 'operator' => 'exists', 'operand' => true]],
+    [['kind' => 'json_path', 'path' => '$.id', 'operator' => 'equals']],
+    [['kind' => 'json_path', 'path' => '$.id', 'operator' => 'type', 'operand' => 'date']],
+])->group('AC-laravel-sdk-monitor-definitions-4');
+
+it('accepts and canonicalizes legacy config section and assertion names', function (): void {
+    $config = $this->credentials + ['checks' => [
+        'uptime_checks' => [['name' => 'up', 'url' => 'https://example.com', 'interval' => '1m']],
+        'ssl_checks' => [['name' => 'ssl', 'url' => 'https://example.com', 'interval' => '1d']],
+        'api_checks' => [[
+            'name' => 'api', 'url' => 'https://example.com/api', 'interval' => '5m',
+            'assertions' => [['data_path' => 'ok', 'assertion_type' => 'value_compare', 'comparison_operator' => '=', 'expected_value' => true]],
+        ]],
+        'link_checks' => [['name' => 'links', 'url' => 'https://example.com', 'interval' => '1d']],
+        'open_graph_checks' => [['name' => 'og', 'url' => 'https://example.com', 'interval' => '1d']],
+        'domain_expiry_checks' => [['name' => 'domain', 'url' => 'https://example.com', 'interval' => '1d']],
+        'response_time_budget_checks' => [['name' => 'budget', 'url' => 'https://example.com', 'interval' => '5m']],
+    ]];
 
     $payload = $this->validator->transformPayload($config);
 
-    expect($payload)->toHaveKeys(['uptime_checks', 'ssl_checks', 'api_checks', 'link_checks', 'open_graph_checks'])
-        ->and($payload['uptime_checks'])->toHaveCount(1)
-        ->and($payload['ssl_checks'])->toHaveCount(1)
-        ->and($payload['link_checks'])->toHaveCount(1)
-        ->and($payload['open_graph_checks'])->toHaveCount(1)
-        ->and($payload['api_checks'])->toBeEmpty();
-});
+    expect($this->validator->validate($config)['valid'])->toBeTrue()
+        ->and(array_keys($payload))->toBe(['contract_version', 'uptime', 'ssl', 'api', 'dead_links', 'open_graph', 'domain_expiry', 'response_time_budget'])
+        ->and($payload['api'][0]['assertions'][0]['operand'])->toBeTrue();
+})->group('AC-laravel-sdk-monitor-definitions-5');
 
-it('returns error for duplicate ssl check names', function () {
-    $config = [
-        'api_key' => 'test-key',
-        'project_id' => '1',
-        'checks' => [
-            'uptime' => [],
-            'ssl' => [
-                ['name' => 'main-ssl', 'url' => 'https://example.com', 'interval' => '1d'],
-                ['name' => 'main-ssl', 'url' => 'https://example2.com', 'interval' => '1d'],
-            ],
-            'api' => [],
-            'dead_links' => [],
-            'open_graph' => [],
-        ],
-    ];
-
-    $result = $this->validator->validate($config);
-
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'][0])->toContain('Duplicate ssl check names');
-});
-
-it('returns error for duplicate api check names', function () {
-    $config = [
-        'api_key' => 'test-key',
-        'project_id' => '1',
-        'checks' => [
-            'uptime' => [],
-            'ssl' => [],
-            'api' => [
-                ['name' => 'health', 'url' => 'https://example.com/health', 'interval' => '5m'],
-                ['name' => 'health', 'url' => 'https://example.com/api/health', 'interval' => '5m'],
-            ],
-            'dead_links' => [],
-            'open_graph' => [],
-        ],
-    ];
-
-    $result = $this->validator->validate($config);
-
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'][0])->toContain('Duplicate api check names');
-});
-
-it('returns error for duplicate dead_links check names', function () {
-    $config = [
-        'api_key' => 'test-key',
-        'project_id' => '1',
-        'checks' => [
-            'uptime' => [],
-            'ssl' => [],
-            'api' => [],
-            'dead_links' => [
-                ['name' => 'homepage-links', 'url' => 'https://example.com', 'interval' => '1d'],
-                ['name' => 'homepage-links', 'url' => 'https://example2.com', 'interval' => '1d'],
-            ],
-            'open_graph' => [],
-        ],
-    ];
-
-    $result = $this->validator->validate($config);
-
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'][0])->toContain('Duplicate dead_links check names');
-});
-
-it('returns error for duplicate open_graph check names', function () {
-    $config = [
-        'api_key' => 'test-key',
-        'project_id' => '1',
-        'checks' => [
-            'uptime' => [],
-            'ssl' => [],
-            'api' => [],
-            'dead_links' => [],
-            'open_graph' => [
-                ['name' => 'homepage-og', 'url' => 'https://example.com', 'interval' => '1d'],
-                ['name' => 'homepage-og', 'url' => 'https://example2.com', 'interval' => '1d'],
-            ],
-        ],
-    ];
-
-    $result = $this->validator->validate($config);
-
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'][0])->toContain('Duplicate open_graph check names');
-});
-
-it('returns multiple errors when both api_key and project_id are missing', function () {
-    $config = [
-        'api_key' => null,
-        'project_id' => null,
-        'checks' => ['uptime' => [], 'ssl' => [], 'api' => [], 'dead_links' => [], 'open_graph' => []],
-    ];
-
-    $result = $this->validator->validate($config);
-
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'])->toHaveCount(2)
-        ->and($result['errors'])->toContain('CHECKYBOT_API_KEY is not configured')
-        ->and($result['errors'])->toContain('CHECKYBOT_PROJECT_ID is not configured');
-});
-
-it('returns valid with empty checks arrays', function () {
-    $config = [
-        'api_key' => 'test-key',
-        'project_id' => '1',
-        'checks' => ['uptime' => [], 'ssl' => [], 'api' => [], 'dead_links' => [], 'open_graph' => []],
-    ];
-
-    $result = $this->validator->validate($config);
-
-    expect($result['valid'])->toBeTrue()
-        ->and($result['errors'])->toBeEmpty();
-});
-
-it('handles missing checks key gracefully', function () {
-    $config = [
-        'api_key' => 'test-key',
-        'project_id' => '1',
-    ];
-
-    $result = $this->validator->validate($config);
-
-    expect($result['valid'])->toBeTrue();
-});
-
-it('transforms payload with api checks including assertions', function () {
-    $config = [
-        'checks' => [
-            'uptime' => [],
-            'ssl' => [],
-            'api' => [
-                [
-                    'name' => 'health-check',
-                    'url' => 'https://example.com/api/health',
-                    'interval' => '5m',
-                    'headers' => ['Accept' => 'application/json'],
-                    'assertions' => [
-                        ['data_path' => 'status', 'assertion_type' => 'exists'],
-                        ['data_path' => 'status', 'assertion_type' => 'value_compare', 'comparison_operator' => '=', 'expected_value' => 'healthy'],
-                    ],
-                ],
-            ],
-            'dead_links' => [],
-            'open_graph' => [],
-        ],
-    ];
-
-    $payload = $this->validator->transformPayload($config);
-
-    expect($payload['api_checks'])->toHaveCount(1)
-        ->and($payload['api_checks'][0]['assertions'])->toHaveCount(2)
-        ->and($payload['api_checks'][0]['headers'])->toHaveKey('Accept');
-});
-
-it('returns error for invalid url in config check', function () {
-    $config = [
-        'api_key' => 'test-key',
-        'project_id' => '1',
-        'checks' => [
-            'uptime' => [
-                ['name' => 'homepage', 'url' => 'not-a-url', 'interval' => '5m'],
-            ],
-            'ssl' => [],
-            'api' => [],
-            'dead_links' => [],
-            'open_graph' => [],
-        ],
-    ];
-
-    $result = $this->validator->validate($config);
-
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'])->toContain("Check 'homepage' has an invalid URL: not-a-url");
-});
-
-it('returns error for invalid interval in config check', function () {
-    $config = [
-        'api_key' => 'test-key',
-        'project_id' => '1',
-        'checks' => [
-            'uptime' => [
-                ['name' => 'homepage', 'url' => 'https://example.com', 'interval' => 'invalid'],
-            ],
-            'ssl' => [],
-            'api' => [],
-            'dead_links' => [],
-            'open_graph' => [],
-        ],
-    ];
-
-    $result = $this->validator->validate($config);
-
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'])->toContain("Check 'homepage' has an invalid interval: invalid");
-});
-
-it('returns error for missing url in config check', function () {
-    $config = [
-        'api_key' => 'test-key',
-        'project_id' => '1',
-        'checks' => [
-            'uptime' => [
-                ['name' => 'homepage', 'url' => '', 'interval' => '5m'],
-            ],
-            'ssl' => [],
-            'api' => [],
-            'dead_links' => [],
-            'open_graph' => [],
-        ],
-    ];
-
-    $result = $this->validator->validate($config);
-
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'])->toContain("Check 'homepage' is missing a URL");
-});
-
-it('returns error for missing interval in config check', function () {
-    $config = [
-        'api_key' => 'test-key',
-        'project_id' => '1',
-        'checks' => [
-            'uptime' => [
-                ['name' => 'homepage', 'url' => 'https://example.com', 'interval' => ''],
-            ],
-            'ssl' => [],
-            'api' => [],
-            'dead_links' => [],
-            'open_graph' => [],
-        ],
-    ];
-
-    $result = $this->validator->validate($config);
-
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'])->toContain("Check 'homepage' is missing an interval");
-});
-
-it('validates registry checks for missing url', function () {
-    $registry = new CheckRegistry;
-    $registry->uptime('homepage')->every('5m');
-
-    $result = $this->validator->validateWithRegistry([
-        'api_key' => 'test-key',
-        'project_id' => '1',
-    ], $registry);
-
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'])->toContain("Check 'homepage' is missing a URL");
-});
-
-it('validates registry checks for invalid url', function () {
-    $registry = new CheckRegistry;
-    $registry->uptime('homepage')->url('not-a-url')->every('5m');
-
-    $result = $this->validator->validateWithRegistry([
-        'api_key' => 'test-key',
-        'project_id' => '1',
-    ], $registry);
-
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'])->toContain("Check 'homepage' has an invalid URL: not-a-url");
-});
-
-it('validates registry checks for invalid interval', function () {
-    $registry = new CheckRegistry;
-    $registry->uptime('homepage')->url('https://example.com')->every('invalid');
-
-    $result = $this->validator->validateWithRegistry([
-        'api_key' => 'test-key',
-        'project_id' => '1',
-    ], $registry);
-
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'])->toContain("Check 'homepage' has an invalid interval: invalid");
-});
-
-it('accepts valid intervals', function () {
-    $config = [
-        'api_key' => 'test-key',
-        'project_id' => '1',
-        'checks' => [
-            'uptime' => [
-                ['name' => 's', 'url' => 'https://example.com', 'interval' => '1s'],
-                ['name' => 'm', 'url' => 'https://example.com', 'interval' => '5m'],
-                ['name' => 'h', 'url' => 'https://example.com', 'interval' => '1h'],
-                ['name' => 'd', 'url' => 'https://example.com', 'interval' => '7d'],
-            ],
-            'ssl' => [],
-            'api' => [],
-            'dead_links' => [],
-            'open_graph' => [],
-        ],
-    ];
-
-    $result = $this->validator->validate($config);
-
-    expect($result['valid'])->toBeTrue();
-});
-
-it('validates duplicate link check names in registry', function () {
-    $registry = new CheckRegistry;
-    $registry->links('homepage-links')->url('https://example.com')->daily();
-    $registry->links('homepage-links')->url('https://example2.com')->daily();
-
-    $result = $this->validator->validateWithRegistry([
-        'api_key' => 'test-key',
-        'project_id' => '1',
-    ], $registry);
-
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'][0])->toContain('Duplicate link check names');
-});
-
-it('validates duplicate open graph check names in registry', function () {
-    $registry = new CheckRegistry;
-    $registry->openGraph('homepage-og')->url('https://example.com')->daily();
-    $registry->openGraph('homepage-og')->url('https://example2.com')->daily();
-
-    $result = $this->validator->validateWithRegistry([
-        'api_key' => 'test-key',
-        'project_id' => '1',
-    ], $registry);
-
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'][0])->toContain('Duplicate open_graph check names');
-});
-
-it('validates all registry check fields across types', function () {
-    $registry = new CheckRegistry;
-    $registry->uptime('bad-uptime')->url('bad-url')->every('bad');
-    $registry->ssl('bad-ssl')->url('')->every('1d');
-    $registry->links('bad-links')->url('https://example.com')->every('');
-
-    $result = $this->validator->validateWithRegistry([
-        'api_key' => 'test-key',
-        'project_id' => '1',
-    ], $registry);
-
-    expect($result['valid'])->toBeFalse()
-        ->and($result['errors'])->toContain("Check 'bad-uptime' has an invalid URL: bad-url")
-        ->and($result['errors'])->toContain("Check 'bad-uptime' has an invalid interval: bad")
-        ->and($result['errors'])->toContain("Check 'bad-ssl' is missing a URL")
-        ->and($result['errors'])->toContain("Check 'bad-links' is missing an interval");
+it('reports missing credentials and accepts no definitions', function (): void {
+    expect($this->validator->validate([])['errors'])->toBe([
+        'CHECKYBOT_API_KEY is not configured',
+        'CHECKYBOT_PROJECT_ID is not configured',
+    ])->and($this->validator->validate($this->credentials)['valid'])->toBeTrue();
 });

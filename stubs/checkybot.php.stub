@@ -38,6 +38,8 @@ Checkybot::ssl('main-certificate')
 // Checkybot::api('health-check')
 //     ->url(config('app.url') . '/api/health')
 //     ->everyFiveMinutes()
+//     ->expectStatus(200)
+//     ->maxLatency(750)
 //     ->expect('status')->toEqual('healthy')
 //     ->expect('database.connected')->toBeTrue();
 
@@ -55,3 +57,15 @@ Checkybot::ssl('main-certificate')
 //     ->url(config('app.url'))
 //     ->daily()
 //     ->requireTags(['og:title', 'og:description', 'og:image']);
+
+// Domain-expiry Checks (warn_days defaults to 30)
+
+// Checkybot::domainExpiry('primary-domain-expiry')
+//     ->url(config('app.url'))
+//     ->daily();
+
+// Response-time Budget Checks (defaults to p95 <= 2000 ms)
+
+// Checkybot::responseTimeBudget('homepage-p95')
+//     ->url(config('app.url'))
+//     ->everyFiveMinutes();

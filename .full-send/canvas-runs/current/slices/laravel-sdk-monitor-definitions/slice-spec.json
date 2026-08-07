@@ -1,0 +1,207 @@
+{
+  "slice_key": "laravel-sdk-monitor-definitions",
+  "base_requirements": [
+    "Canvas slice mandate: adapt the Laravel package declaration surface to v1 response-time-budget, domain-expiry, API assertion-metadata, secret-masking, sync-summary, documentation, facade, and backward-compatibility requirements without implementing monitor runtime behavior",
+    "PRD 4.2: website declarations support domain-expiry warning at 30 days and a p95 response-time budget whose v1 warning threshold defaults to 2000 milliseconds",
+    "PRD 4.3: API declarations support custom headers plus ordered status, latency, and JSON response-shape assertions",
+    "PRD 4.3 security: package-held header and token plaintext may cross the authenticated HTTPS sync request but must be masked from command output, exceptions, logs, debug output, documentation examples, and integration evidence; encryption at rest remains downstream runtime ownership",
+    "Inherited CheckSyncPayloadContract: registry and config definitions serialize to check-sync.v1 with canonical uptime, ssl, api, dead_links, open_graph, domain_expiry, and response_time_budget arrays and are validated against the foundation-owned generated schema rather than a package-local duplicate",
+    "Backward compatibility: existing uptime, SSL, API, link, and OpenGraph fluent methods, config sections, options, precedence, and legacy sync-summary aliases continue to work",
+    "Canvas owned sdk-to-check-sync-contract seam and integration requirement: package serialization is proven through a real sync HTTP request, the foundation harness event API, registered outbox relay, real queue worker, and receipt API in the canonical full-runtime Playwright harness"
+  ],
+  "ownership": {
+    "files": [
+      "src",
+      "config/checkybot-laravel.php",
+      "stubs",
+      "README.md",
+      "CHANGELOG.md",
+      "tests/Feature/FluentApiSyncTest.php",
+      "tests/Feature/SyncCommandTest.php",
+      "tests/Unit/CheckRegistryTest.php",
+      "tests/Unit/CheckybotClientTest.php",
+      "tests/Unit/ConfigValidatorTest.php",
+      "tests/Unit/Checks",
+      "tests/Unit/ConfigTest.php"
+    ],
+    "migration_timestamp_range": "none"
+  },
+  "api_contract": [
+    {
+      "route": "POST /api/v1/projects/{project_id}/checks/sync",
+      "request": {
+        "path": {
+          "project_id": "opaque non-empty project identifier from checkybot-laravel.project_id; URL-encoded by the client and never accepted from an individual check definition"
+        },
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer <checkybot-laravel.api_key>"
+        },
+        "body": {
+          "contract_version": "literal check-sync.v1",
+          "uptime": "array of {name, url, interval, max_redirects?, headers?}",
+          "ssl": "array of {name, url, interval}",
+          "api": "array of {name, url, interval, headers?, expected_status?, max_latency_ms?, retry_count?, assertions?}; assertions are ordered metadata for status, latency, or JSON response-shape evaluation",
+          "dead_links": "array of {name, url, interval, max_depth?, exclude_paths?, headers?}",
+          "open_graph": "array of {name, url, interval, required_tags?, headers?}",
+          "domain_expiry": "array of {name, url, interval, warn_days}; v1 default warn_days is 30",
+          "response_time_budget": "array of {name, url, interval, percentile, budget_ms}; v1 defaults are percentile 95 and budget_ms 2000"
+        },
+        "validation": "Every array is required, including empty arrays. Names are non-empty and unique within a type, URLs pass FILTER_VALIDATE_URL and use http or https, intervals match /^\\d+[smhd]$/, thresholds and existing type options are bounded, and API assertion kind/operator/operand/path combinations are valid. Invalid local definitions stop before HTTP; downstream contract validation returns 422.",
+        "authorization": "The bearer key must be authorized to manage the route project. Production transport must be HTTPS; only the canonical loopback harness may use HTTP. Header/token values remain unmasked only inside the in-memory outbound body so the downstream service can encrypt them at rest."
+      },
+      "response": {
+        "200": {
+          "message": "string",
+          "summary": "object containing created, updated, and deleted non-negative integer counts for canonical uptime|ssl|api|dead_links|open_graph|domain_expiry|response_time_budget keys or the compatible legacy *_checks/link_checks aliases"
+        },
+        "202": {
+          "availability": "canonical loopback harness only",
+          "operation_id": "UUID",
+          "status": "queued",
+          "event_type": "contract.check_sync.probed"
+        },
+        "401": {
+          "message": "Unauthenticated."
+        },
+        "403": {
+          "message": "The API key cannot manage this project."
+        },
+        "422": {
+          "message": "string",
+          "errors": "object keyed by invalid payload field"
+        },
+        "transport_failure": "CheckybotSyncException with bounded redacted text and no API key, header value, bearer token, cookie value, or payload secret"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "POST /__harness/monitor-foundation/events",
+      "request": {
+        "availability": "canonical testing runtime only; loopback-bound and absent in production",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "operation_id": "UUID used for idempotency",
+          "event_type": "literal contract.check_sync.probed",
+          "payload": "the exact check-sync.v1 body captured from the SDK sync HTTP request, including all seven canonical arrays"
+        },
+        "validation": "The payload must pass the foundation-owned CheckSyncPayloadContract; malformed fields and unknown contract versions return 422 before enqueueing.",
+        "authorization": "Harness-only loopback access; no production registration."
+      },
+      "response": {
+        "202": {
+          "operation_id": "UUID",
+          "status": "queued",
+          "event_type": "contract.check_sync.probed"
+        },
+        "422": {
+          "message": "string",
+          "errors": "object keyed by invalid field"
+        }
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "GET /__harness/monitor-foundation/receipts/{operation_id}",
+      "request": {
+        "availability": "canonical testing runtime only; loopback-bound and absent in production",
+        "path": {
+          "operation_id": "UUID accepted by POST /__harness/monitor-foundation/events"
+        },
+        "headers": {
+          "Accept": "application/json"
+        },
+        "authorization": "Harness-only loopback access."
+      },
+      "response": {
+        "200": {
+          "operation_id": "UUID",
+          "status": "queued|delivered|failed",
+          "receipts": [
+            {
+              "consumer": "sdk",
+              "contract_version": "check-sync.v1",
+              "effect": "schema-valid",
+              "schema_valid": true,
+              "check_types": "uptime|ssl|api|dead_links|open_graph|domain_expiry|response_time_budget"
+            }
+          ]
+        },
+        "404": {
+          "message": "Foundation harness operation not found."
+        }
+      },
+      "consumed_by": "backend"
+    }
+  ],
+  "backend_milestone_items": [
+    {
+      "milestone_key": "backend-sdk-definition-contracts",
+      "title": "V1 fluent and config monitor definition contracts",
+      "spec_section_id": "backend-sdk-definition-contracts",
+      "ledger_path": ".full-send/canvas-runs/current/slices/laravel-sdk-monitor-definitions/milestones/backend-sdk-definition-contracts/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/laravel-sdk-monitor-definitions/milestones/backend-sdk-definition-contracts/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/laravel-sdk-monitor-definitions/milestones/backend-sdk-definition-contracts/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/laravel-sdk-monitor-definitions/milestones/backend-sdk-definition-contracts/handoff.md",
+      "contract_excerpt": "Within inherited ownership, add focused domain-expiry and response-time-budget check builders, registry arrays/factories/getters/count/flush support, matching config and publishable-stub sections, and one check-sync.v1 serializer shared by fluent and config paths. Emit exactly the foundation-owned canonical arrays: uptime, ssl, api, dead_links, open_graph, domain_expiry, and response_time_budget. Add API status, latency, and ordered JSON response-shape assertion metadata while retaining the current fluent assertion vocabulary. ConfigValidator remains the local boundary and uses FILTER_VALIDATE_URL plus /^\\d+[smhd]$/. Sensitive header/token values are held only as needed to build the outbound request; safe/debug/console representations mask values, and this package does not claim encryption-at-rest or evaluator behavior.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-laravel-sdk-monitor-definitions-1",
+          "text": "Unit and config tests prove domain-expiry and response-time-budget definitions can be declared through both fluent factories and config, serialize identically into their canonical check-sync.v1 arrays, default to warn_days=30 and percentile=95/budget_ms=2000, and preserve valid explicit thresholds."
+        },
+        {
+          "id": "AC-laravel-sdk-monitor-definitions-2",
+          "text": "API-check unit tests prove fluent status, maximum-latency, and chained JSON response-shape assertions serialize as deterministic ordered metadata with stable sort_order and is_active values and preserve scalar operand types required by the generated contract."
+        },
+        {
+          "id": "AC-laravel-sdk-monitor-definitions-3",
+          "text": "A fixed secret-corpus test proves Authorization, bearer-token, cookie, and custom-header plaintext appears only in the captured outbound HTTPS request body and never in dry-run or summary output, exception text, Laravel logs, object debug output, safe serialization, snapshots, or integration evidence."
+        },
+        {
+          "id": "AC-laravel-sdk-monitor-definitions-4",
+          "text": "Table-driven ConfigValidator tests prove fluent and config definitions reject duplicate names per type, URLs failing FILTER_VALIDATE_URL or non-http(s) schemes, intervals outside /^\\d+[smhd]$/, out-of-range domain/budget/status/latency/retry values, and invalid assertion kind/operator/path/operand combinations before any HTTP request is made."
+        },
+        {
+          "id": "AC-laravel-sdk-monitor-definitions-5",
+          "text": "Backward-compatibility tests prove existing uptime, ssl, api, links, and openGraph facade methods, interval helpers, existing options and assertion aliases, registry precedence over config, count/flush/getters, and legacy config section names continue to produce the same per-check values inside the canonical versioned payload."
+        }
+      ]
+    },
+    {
+      "milestone_key": "backend-sdk-sync-compatibility",
+      "title": "Secure sync transport, summaries, documentation, and runtime seam",
+      "spec_section_id": "backend-sdk-sync-compatibility",
+      "ledger_path": ".full-send/canvas-runs/current/slices/laravel-sdk-monitor-definitions/milestones/backend-sdk-sync-compatibility/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/laravel-sdk-monitor-definitions/milestones/backend-sdk-sync-compatibility/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/laravel-sdk-monitor-definitions/milestones/backend-sdk-sync-compatibility/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/laravel-sdk-monitor-definitions/milestones/backend-sdk-sync-compatibility/handoff.md",
+      "contract_excerpt": "Update CheckybotClient and checkybot:sync to send the versioned canonical payload to the existing project sync route, reject unsafe production base URLs, retain bounded retry/error behavior, and normalize both canonical and legacy summary key profiles for all seven types. Dry-run output lists safe names, URLs, intervals, and type totals without secret-bearing fields. Consume, rather than duplicate or edit, the foundation CheckSyncPayloadContract generated schema. For the owned sdk-to-check-sync-contract seam, add testing-only loopback sync capture/wiring under src that is absent in production, preserve the exact client-emitted body, post it through the real foundation harness event API, execute the registered checkybot:foundation-relay command, and let the canonical real queue worker deliver it before the receipt API is read. The canonical full-runtime Playwright runner may generate run-scoped test code/evidence under build, but reviewable product/test changes remain inside inherited ownership. Update README, CHANGELOG, facade docblocks, config, and stubs with both declaration styles, migration notes, and the explicit security/runtime ownership boundary.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-laravel-sdk-monitor-definitions-6",
+          "text": "CheckybotClient tests prove syncChecks sends one authenticated JSON POST to /api/v1/projects/{encoded_project_id}/checks/sync with contract_version=check-sync.v1 and all seven arrays, accepts declared 200 and harness 202 responses, maps 401/403/422 and transport failures to CheckybotSyncException, and exposes no secret in logs or thrown messages."
+        },
+        {
+          "id": "AC-laravel-sdk-monitor-definitions-7",
+          "text": "Command feature tests prove registry and config syncs count and dry-run-label all seven check types, never print sensitive fields, and render created/updated/deleted totals correctly for both canonical summary keys and legacy uptime_checks|ssl_checks|api_checks|link_checks|open_graph_checks plus new-type *_checks aliases, with absent counts normalized to zero."
+        },
+        {
+          "id": "AC-laravel-sdk-monitor-definitions-8",
+          "text": "Documentation contract tests prove README, CHANGELOG, facade docblocks, published config, and stub contain working fluent and config examples for domain expiry, p95 response budgets, and API status/latency/body assertions; identify check-sync.v1; explain upgrade compatibility; and state that secrets are sent only to the authenticated HTTPS API for downstream encryption and are masked from package output."
+        },
+        {
+          "id": "AC-laravel-sdk-monitor-definitions-9",
+          "text": "Package contract tests validate the exact fluent-generated and config-generated HTTP bodies against the foundation-owned CheckSyncPayloadContract fixtures, accept every current check type and optional field, and reject a missing array, unknown contract version, malformed definition, or package-only unknown top-level key."
+        },
+        {
+          "id": "AC-laravel-sdk-monitor-definitions-10",
+          "text": "The canonical full-runtime Playwright end-to-end test proves the owned sdk-to-check-sync-contract seam by defining all seven types through the real package APIs, capturing the exact body emitted by a real POST /api/v1/projects/{project_id}/checks/sync, submitting that body as contract.check_sync.probed through POST /__harness/monitor-foundation/events, executing the registered checkybot:foundation-relay command with the real queue worker running, and observing an sdk schema-valid receipt listing all seven types through GET /__harness/monitor-foundation/receipts/{operation_id}, without invoking a validator, processor, job, or consumer directly."
+        }
+      ]
+    }
+  ]
+}

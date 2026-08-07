@@ -80,7 +80,7 @@ class CheckybotClient
      */
     public function syncChecks(array $payload): array
     {
-        $url = "/api/v1/projects/{$this->projectId}/checks/sync";
+        $url = '/api/v1/projects/'.rawurlencode($this->projectId).'/checks/sync';
 
         try {
             $response = $this->client->post($url, [
@@ -96,7 +96,7 @@ class CheckybotClient
             if ($statusCode >= 400) {
                 $body = json_decode($response->getBody()->getContents(), true);
                 throw new CheckybotSyncException(
-                    $this->formatErrorMessage($body),
+                    $this->redactSyncMessage($this->formatErrorMessage($body), $payload),
                     $statusCode
                 );
             }
@@ -110,15 +110,17 @@ class CheckybotClient
 
             return $body;
         } catch (GuzzleException $e) {
-            $errorMessage = $this->parseErrorMessage($e);
+            $errorMessage = $this->redactSyncMessage($this->parseErrorMessage($e), $payload);
 
             Log::error('Checkybot sync failed', [
                 'project_id' => $this->projectId,
-                'error' => $this->redactLogMessage($errorMessage),
+                'error' => $errorMessage,
                 'status_code' => $e->getCode(),
             ]);
 
-            throw new CheckybotSyncException($errorMessage, (int) $e->getCode(), $e);
+            // Do not retain the transport exception: request objects may contain
+            // authorization or JSON body plaintext in their debug representation.
+            throw new CheckybotSyncException($errorMessage, (int) $e->getCode());
         }
     }
 
@@ -354,13 +356,45 @@ class CheckybotClient
         return is_array($decoded) ? $decoded : [];
     }
 
-    private function redactLogMessage(string $message): string
+    /** @param array<string, mixed> $payload */
+    private function redactSyncMessage(string $message, array $payload): string
     {
-        if ($this->apiKey !== '') {
-            $message = str_replace(['Bearer '.$this->apiKey, $this->apiKey], '[redacted]', $message);
+        $secrets = [$this->apiKey, 'Bearer '.$this->apiKey];
+        $collect = function (mixed $value, ?string $key = null) use (&$collect, &$secrets): void {
+            if (! is_array($value)) {
+                return;
+            }
+            foreach ($value as $childKey => $child) {
+                if ($key === 'headers' && is_string($child) && $child !== '') {
+                    $secrets[] = $child;
+                }
+                $collect($child, is_string($childKey) ? $childKey : null);
+            }
+        };
+        $collect($payload);
+
+        foreach (array_unique($secrets) as $secret) {
+            if ($secret !== '') {
+                $message = str_replace($secret, '[REDACTED]', $message);
+            }
         }
+        $message = (string) preg_replace('/\b(Authorization|Proxy-Authorization|Cookie|Set-Cookie)\s*:\s*[^\r\n,}]+/iu', '$1: [REDACTED]', $message);
 
         return strlen($message) > 500 ? substr($message, 0, 500).'…' : $message;
+    }
+
+    /** @return array<string, mixed> */
+    public function __debugInfo(): array
+    {
+        return [
+            'baseUrl' => $this->baseUrl,
+            'apiKey' => '[REDACTED]',
+            'projectId' => $this->projectId,
+            'timeout' => $this->timeout,
+            'retryTimes' => $this->retryTimes,
+            'retryDelay' => $this->retryDelay,
+            'client' => $this->client::class,
+        ];
     }
 
     protected function parseErrorMessage(GuzzleException $e): string

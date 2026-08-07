@@ -44,11 +44,13 @@ class CheckybotCommand extends Command
             ? $registry->toArray()
             : $validator->transformPayload($config);
 
-        $totalChecks = count($payload['uptime_checks'])
-            + count($payload['ssl_checks'])
-            + count($payload['api_checks'])
-            + count($payload['link_checks'])
-            + count($payload['open_graph_checks']);
+        $totalChecks = count($payload['uptime'])
+            + count($payload['ssl'])
+            + count($payload['api'])
+            + count($payload['dead_links'])
+            + count($payload['open_graph'])
+            + count($payload['domain_expiry'])
+            + count($payload['response_time_budget']);
 
         $this->comment("Found {$totalChecks} checks to sync");
 
@@ -84,7 +86,7 @@ class CheckybotCommand extends Command
         $this->comment('DRY RUN - No changes will be made');
         $this->line('');
 
-        foreach (['uptime_checks', 'ssl_checks', 'api_checks', 'link_checks', 'open_graph_checks'] as $type) {
+        foreach (['uptime', 'ssl', 'api', 'dead_links', 'open_graph', 'domain_expiry', 'response_time_budget'] as $type) {
             if (! empty($payload[$type])) {
                 $this->info($this->labelForType($type).':');
                 foreach ($payload[$type] as $check) {
@@ -116,8 +118,13 @@ class CheckybotCommand extends Command
     protected function labelForType(string $type): string
     {
         return match ($type) {
-            'link_checks' => 'Link Checks',
-            'open_graph_checks' => 'OpenGraph Checks',
+            'uptime' => 'Uptime Checks',
+            'ssl' => 'Ssl Checks',
+            'api' => 'Api Checks',
+            'dead_links', 'link_checks' => 'Link Checks',
+            'open_graph', 'open_graph_checks' => 'OpenGraph Checks',
+            'domain_expiry' => 'Domain Expiry Checks',
+            'response_time_budget' => 'Response Time Budget Checks',
             default => ucwords(str_replace('_', ' ', $type)),
         };
     }

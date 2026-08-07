@@ -30,9 +30,11 @@ class CheckybotLaravelServiceProvider extends PackageServiceProvider
         $this->app->register(ExpandedChecksServiceProvider::class);
         $this->app->register(PushServiceProvider::class);
 
-        // Register CheckRegistry as singleton
-        $this->app->singleton(CheckRegistry::class, function () {
-            return new CheckRegistry;
+        $this->app->singleton(CheckSyncPayloadSerializer::class, fn () => new CheckSyncPayloadSerializer);
+
+        // Registry and config paths share the same canonical serializer boundary.
+        $this->app->singleton(CheckRegistry::class, function ($app) {
+            return new CheckRegistry($app->make(CheckSyncPayloadSerializer::class));
         });
 
         $this->app->singleton(CheckybotClient::class, function ($app) {
@@ -47,7 +49,7 @@ class CheckybotLaravelServiceProvider extends PackageServiceProvider
         });
 
         $this->app->singleton(ConfigValidator::class, function ($app) {
-            return new ConfigValidator;
+            return new ConfigValidator($app->make(CheckSyncPayloadSerializer::class));
         });
     }
 

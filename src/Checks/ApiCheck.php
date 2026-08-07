@@ -45,6 +45,8 @@ class ApiCheck extends BaseCheck
 
     protected ?int $expectedStatus = null;
 
+    protected ?int $maxLatencyMs = null;
+
     protected ?int $retryCount = null;
 
     /**
@@ -127,6 +129,27 @@ class ApiCheck extends BaseCheck
         }
 
         $this->expectedStatus = $status;
+        $this->replaceMetadataAssertion('status', [
+            'kind' => 'status',
+            'operator' => 'equals',
+            'operand' => $status,
+        ]);
+
+        return $this;
+    }
+
+    public function maxLatency(int $milliseconds): self
+    {
+        if ($milliseconds < 1 || $milliseconds > 3_600_000) {
+            throw new InvalidArgumentException('Maximum latency must be between 1 and 3600000 milliseconds.');
+        }
+
+        $this->maxLatencyMs = $milliseconds;
+        $this->replaceMetadataAssertion('latency', [
+            'kind' => 'latency',
+            'operator' => 'less_than_or_equal',
+            'operand' => $milliseconds,
+        ]);
 
         return $this;
     }
@@ -184,8 +207,9 @@ class ApiCheck extends BaseCheck
     public function expectPathExists(string $path): self
     {
         return $this->addAssertion([
-            'data_path' => $path,
-            'assertion_type' => 'exists',
+            'kind' => 'json_path',
+            'operator' => 'exists',
+            'path' => $path,
         ]);
     }
 
@@ -208,6 +232,22 @@ class ApiCheck extends BaseCheck
         return $this;
     }
 
+    /** @param array<string, mixed> $assertion */
+    private function replaceMetadataAssertion(string $kind, array $assertion): void
+    {
+        foreach ($this->assertions as $index => $existing) {
+            if (($existing['kind'] ?? null) === $kind) {
+                $assertion['sort_order'] = $existing['sort_order'];
+                $assertion['is_active'] = true;
+                $this->assertions[$index] = $assertion;
+
+                return;
+            }
+        }
+
+        $this->addAssertion($assertion);
+    }
+
     /**
      * Convert the check to array format for the API.
      *
@@ -227,6 +267,10 @@ class ApiCheck extends BaseCheck
 
         if ($this->expectedStatus !== null) {
             $data['expected_status'] = $this->expectedStatus;
+        }
+
+        if ($this->maxLatencyMs !== null) {
+            $data['max_latency_ms'] = $this->maxLatencyMs;
         }
 
         if ($this->retryCount !== null) {
