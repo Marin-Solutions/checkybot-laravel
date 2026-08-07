@@ -86,14 +86,16 @@
     },
     "checkSync": {
       "type": "object", "additionalProperties": false,
-      "required": ["contract_version", "uptime", "ssl", "api", "dead_links", "open_graph"],
+      "required": ["contract_version", "uptime", "ssl", "api", "dead_links", "open_graph", "domain_expiry", "response_time_budget"],
       "properties": {
         "contract_version": {"const": "check-sync.v1"},
         "uptime": {"type": "array", "items": {"$ref": "#/$defs/check"}},
         "ssl": {"type": "array", "items": {"$ref": "#/$defs/check"}},
         "api": {"type": "array", "items": {"$ref": "#/$defs/check"}},
         "dead_links": {"type": "array", "items": {"$ref": "#/$defs/check"}},
-        "open_graph": {"type": "array", "items": {"$ref": "#/$defs/check"}}
+        "open_graph": {"type": "array", "items": {"$ref": "#/$defs/check"}},
+        "domain_expiry": {"type": "array", "items": {"$ref": "#/$defs/check"}},
+        "response_time_budget": {"type": "array", "items": {"$ref": "#/$defs/check"}}
       }
     }
   }

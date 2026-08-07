@@ -13,8 +13,10 @@ use MarinSolutions\CheckybotLaravel\Checks\UptimeCheck;
 /**
  * Facade for defining monitoring checks.
  *
- * Provides a fluent, expressive API for defining uptime, SSL, and API checks
- * that will be synced to your Checkybot instance.
+ * Provides the fluent declaration API for the versioned check-sync.v1 body.
+ * Existing uptime, SSL, API, link, and OpenGraph methods remain compatible.
+ * Header/token plaintext is sent only to the authenticated HTTPS API for
+ * downstream encryption and is masked from package output and diagnostics.
  *
  * @method static UptimeCheck uptime(string $name) Create a new uptime check
  * @method static SslCheck ssl(string $name) Create a new SSL certificate check
@@ -50,13 +52,28 @@ use MarinSolutions\CheckybotLaravel\Checks\UptimeCheck;
  *     ->url('https://example.com')
  *     ->daily();
  * ```
- * @example API check with assertions
+ * @example API status, latency, and body assertions
  * ```php
  * Checkybot::api('health')
  *     ->url('https://example.com/api/health')
  *     ->every('5m')
+ *     ->expectStatus(200)
+ *     ->maxLatency(750)
  *     ->expect('status')->toEqual('healthy')
  *     ->expect('database.connected')->toBeTrue();
+ * ```
+ * @example Domain expiry warning and p95 response budget
+ * ```php
+ * Checkybot::domainExpiry('primary-domain')
+ *     ->url('https://example.com')
+ *     ->daily()
+ *     ->warnDays(30);
+ *
+ * Checkybot::responseTimeBudget('homepage-p95')
+ *     ->url('https://example.com')
+ *     ->everyFiveMinutes()
+ *     ->percentile(95)
+ *     ->budgetMs(2000);
  * ```
  */
 class Checkybot extends Facade

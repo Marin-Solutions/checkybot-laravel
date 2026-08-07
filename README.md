@@ -157,10 +157,66 @@ Checkybot::api('health-check')
     ->url(config('app.url') . '/api/health')
     ->everyFiveMinutes()
     ->withToken(config('services.monitoring.token'))
+    ->expectStatus(200)
+    ->maxLatency(750)
     ->expect('status')->toEqual('healthy')
     ->expect('database.connected')->toBeTrue()
     ->expect('queue.size')->toBeLessThan(1000);
+
+// Warn 30 days before the domain expires.
+Checkybot::domainExpiry('primary-domain')
+    ->url(config('app.url'))
+    ->daily()
+    ->warnDays(30);
+
+// Enforce a p95 response-time budget of 2000 milliseconds.
+Checkybot::responseTimeBudget('homepage-p95')
+    ->url(config('app.url'))
+    ->everyFiveMinutes()
+    ->percentile(95)
+    ->budgetMs(2000);
 ```
+
+### Config declarations
+
+The published `config/checkybot-laravel.php` supports the same definitions:
+
+```php
+'checks' => [
+    'api' => [[
+        'name' => 'health',
+        'url' => env('APP_URL').'/api/health',
+        'interval' => '5m',
+        'expected_status' => 200,
+        'max_latency_ms' => 750,
+        'assertions' => [[
+            'kind' => 'json_path',
+            'operator' => 'equals',
+            'path' => 'status',
+            'operand' => 'healthy',
+        ]],
+    ]],
+    'domain_expiry' => [[
+        'name' => 'primary-domain',
+        'url' => env('APP_URL'),
+        'interval' => '1d',
+        'warn_days' => 30,
+    ]],
+    'response_time_budget' => [[
+        'name' => 'homepage-p95',
+        'url' => env('APP_URL'),
+        'interval' => '5m',
+        'percentile' => 95,
+        'budget_ms' => 2000,
+    ]],
+],
+```
+
+### `check-sync.v1`, upgrades, and secrets
+
+Sync now emits the versioned `check-sync.v1` contract with all seven arrays, including empty arrays. Existing uptime, SSL, API, link, and OpenGraph fluent methods and config sections remain compatible. Legacy `uptime_checks`, `ssl_checks`, `api_checks`, `link_checks`, and `open_graph_checks` config/summary aliases are still accepted; `domain_expiry_checks` and `response_time_budget_checks` summary aliases are accepted during coordinated server upgrades. Deploy a server that accepts `check-sync.v1` before upgrading this package.
+
+Header and token secrets are sent only in memory to the authenticated HTTPS Checkybot API so the downstream service can encrypt them at rest. They are masked from package dry-run and summary output, exceptions, logs, debug output, and integration evidence. The package does not store or evaluate those secrets locally. Plain HTTP is rejected outside the canonical loopback test harness.
 
 ## Uptime Checks
 

@@ -6,8 +6,10 @@ return [
     | Checkybot API Configuration
     |--------------------------------------------------------------------------
     |
-    | Configure your Checkybot instance URL and authentication credentials.
+    | Configure the authenticated HTTPS API used for check-sync.v1.
     | You must create a project in Checkybot first and obtain the Project ID.
+    | Header/token values cross only this authenticated HTTPS request for
+    | downstream encryption and are masked from package output and diagnostics.
     |
     */
 
@@ -95,7 +97,8 @@ return [
         | Monitor API endpoints and validate JSON responses.
         |
         | Required: name, url, interval
-        | Optional: headers, assertions
+        | Optional: headers, expected_status, max_latency_ms, retry_count,
+        |           ordered status/latency/JSON body assertions
         |
         */
 
@@ -107,12 +110,14 @@ return [
             //     'headers' => [
             //         'Accept' => 'application/json',
             //     ],
+            //     'expected_status' => 200,
+            //     'max_latency_ms' => 750,
             //     'assertions' => [
             //         [
-            //             'data_path' => 'status',
-            //             'assertion_type' => 'exists',
-            //             'sort_order' => 1,
-            //             'is_active' => true,
+            //             'kind' => 'json_path',
+            //             'operator' => 'equals',
+            //             'path' => 'status',
+            //             'operand' => 'healthy',
             //         ],
             //     ],
             // ],

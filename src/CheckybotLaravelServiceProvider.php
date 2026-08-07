@@ -2,13 +2,16 @@
 
 namespace MarinSolutions\CheckybotLaravel;
 
+use Illuminate\Support\Facades\Route;
 use MarinSolutions\CheckybotLaravel\Commands\CheckybotCommand;
 use MarinSolutions\CheckybotLaravel\Domain\Agent\AgentServiceProvider;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\AlertingServiceProvider;
 use MarinSolutions\CheckybotLaravel\Domain\ExpandedChecks\ExpandedChecksServiceProvider;
+use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Http\RequireLoopback;
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\MonitoringFoundationServiceProvider;
 use MarinSolutions\CheckybotLaravel\Domain\Push\PushServiceProvider;
 use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
+use MarinSolutions\CheckybotLaravel\Http\Controllers\Harness\CheckSyncCaptureController;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -57,6 +60,21 @@ class CheckybotLaravelServiceProvider extends PackageServiceProvider
     {
         $this->publishCheckybotRoutes();
         $this->loadCheckybotRoutes();
+        $this->registerHarnessSyncCaptureRoute();
+    }
+
+    /**
+     * Expose the SDK transport receiver only to the canonical loopback runtime.
+     */
+    private function registerHarnessSyncCaptureRoute(): void
+    {
+        if (! $this->app->environment(['testing', 'harness'])) {
+            return;
+        }
+
+        Route::middleware(['api', RequireLoopback::class])
+            ->post('/api/v1/projects/{projectId}/checks/sync', CheckSyncCaptureController::class)
+            ->where('projectId', '[^/]+');
     }
 
     /**

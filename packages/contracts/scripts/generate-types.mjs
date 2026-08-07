@@ -25,7 +25,7 @@ export async function getStatusSummary(token: string, baseUrl = ''): Promise<Sta
 }
 export interface RedactionIncident { contract_version: typeof MONITOR_FOUNDATION_VERSION; incident_id: string; log_lines: string[] }
 export interface CheckDefinition { name: string; url: string; interval: string; [key: string]: unknown }
-export interface CheckSyncPayload { contract_version: typeof CHECK_SYNC_VERSION; uptime: CheckDefinition[]; ssl: CheckDefinition[]; api: CheckDefinition[]; dead_links: CheckDefinition[]; open_graph: CheckDefinition[] }
+export interface CheckSyncPayload { contract_version: typeof CHECK_SYNC_VERSION; uptime: CheckDefinition[]; ssl: CheckDefinition[]; api: CheckDefinition[]; dead_links: CheckDefinition[]; open_graph: CheckDefinition[]; domain_expiry: CheckDefinition[]; response_time_budget: CheckDefinition[] }
 export type FoundationEvent =
   | { operation_id: string; event_type: 'monitor.transitioned'; payload: MonitorTransition }
   | { operation_id: string; event_type: 'contract.check_sync.probed'; payload: CheckSyncPayload }

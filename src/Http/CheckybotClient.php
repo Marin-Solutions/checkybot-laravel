@@ -62,6 +62,8 @@ class CheckybotClient
         protected int $retryDelay = 1000,
         ?Client $client = null
     ) {
+        $this->assertSecureBaseUrl($baseUrl);
+
         $this->client = $client ?? new Client([
             'base_uri' => rtrim($baseUrl, '/'),
             'timeout' => $timeout,
@@ -83,25 +85,16 @@ class CheckybotClient
         $url = '/api/v1/projects/'.rawurlencode($this->projectId).'/checks/sync';
 
         try {
-            $response = $this->client->post($url, [
-                'json' => $payload,
-                'headers' => [
-                    'Accept' => 'application/json',
-                    'Authorization' => 'Bearer '.$this->apiKey,
-                ],
-            ]);
-
+            $response = $this->postSync($url, $payload);
             $statusCode = $response->getStatusCode();
+            $body = $this->decodeResponseBody($response);
 
-            if ($statusCode >= 400) {
-                $body = json_decode($response->getBody()->getContents(), true);
+            if (! in_array($statusCode, [200, 202], true)) {
                 throw new CheckybotSyncException(
                     $this->redactSyncMessage($this->formatErrorMessage($body), $payload),
                     $statusCode
                 );
             }
-
-            $body = json_decode($response->getBody()->getContents(), true) ?? [];
 
             Log::info('Checkybot sync successful', [
                 'project_id' => $this->projectId,
@@ -122,6 +115,49 @@ class CheckybotClient
             // authorization or JSON body plaintext in their debug representation.
             throw new CheckybotSyncException($errorMessage, (int) $e->getCode());
         }
+    }
+
+    private function assertSecureBaseUrl(string $baseUrl): void
+    {
+        $valid = filter_var($baseUrl, FILTER_VALIDATE_URL) !== false;
+        $scheme = strtolower((string) parse_url($baseUrl, PHP_URL_SCHEME));
+        $host = strtolower(trim((string) parse_url($baseUrl, PHP_URL_HOST), '[]'));
+
+        if ($valid && $scheme === 'https') {
+            return;
+        }
+
+        $harnessEnvironment = false;
+        try {
+            $harnessEnvironment = app()->environment(['testing', 'harness']);
+        } catch (\Throwable) {
+            $harnessEnvironment = in_array((string) getenv('APP_ENV'), ['testing', 'harness'], true);
+        }
+
+        if ($valid && $scheme === 'http' && $harnessEnvironment && in_array($host, ['127.0.0.1', '::1', 'localhost'], true)) {
+            return;
+        }
+
+        throw new InvalidArgumentException('Checkybot sync requires an HTTPS base URL; HTTP is restricted to the loopback test harness.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function postSync(string $url, array $payload): ResponseInterface
+    {
+        // Declaration sync is a single authoritative replacement request. Do not
+        // replay it after an ambiguous network outcome; component-status reports
+        // have a separate idempotency key and bounded retry path below.
+        return $this->client->post($url, [
+            'json' => $payload,
+            'allow_redirects' => false,
+            'headers' => [
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+                'Authorization' => 'Bearer '.$this->apiKey,
+            ],
+        ]);
     }
 
     /**
@@ -367,6 +403,12 @@ class CheckybotClient
             foreach ($value as $childKey => $child) {
                 if ($key === 'headers' && is_string($child) && $child !== '') {
                     $secrets[] = $child;
+                    if (preg_match('/^Bearer\\s+(.+)$/i', $child, $match) === 1) {
+                        $secrets[] = $match[1];
+                    }
+                    if (preg_match_all('/(?:^|;\\s*)[^=;]+=(?<value>[^;]+)/', $child, $matches) > 0) {
+                        array_push($secrets, ...$matches['value']);
+                    }
                 }
                 $collect($child, is_string($childKey) ? $childKey : null);
             }

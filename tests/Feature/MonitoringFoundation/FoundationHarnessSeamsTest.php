@@ -133,6 +133,8 @@ it('delivers every typed check array to the sdk and rejects malformed contracts 
         'api' => [$check('api')],
         'dead_links' => [$check('dead-links')],
         'open_graph' => [$check('open-graph')],
+        'domain_expiry' => [[...$check('domain-expiry'), 'warn_days' => 30]],
+        'response_time_budget' => [[...$check('response-budget'), 'percentile' => 95, 'budget_ms' => 2000]],
     ];
 
     $this->postJson('/__harness/monitor-foundation/events', [
@@ -151,11 +153,17 @@ it('delivers every typed check array to the sdk and rejects malformed contracts 
         ->assertJsonPath('receipts.0.consumer', 'sdk')
         ->assertJsonPath('receipts.0.effect', 'schema-valid')
         ->assertJsonPath('receipts.0.schema_valid', true)
-        ->assertJsonPath('receipts.0.check_types', ['uptime', 'ssl', 'api', 'dead_links', 'open_graph']);
+        ->assertJsonPath('receipts.0.check_types', [
+            'uptime', 'ssl', 'api', 'dead_links', 'open_graph', 'domain_expiry', 'response_time_budget',
+        ]);
+
+    $missingNewArrays = $payload;
+    unset($missingNewArrays['domain_expiry'], $missingNewArrays['response_time_budget']);
 
     foreach ([
         [[...$payload, 'contract_version' => 'check-sync.v999'], 'contract_version'],
         [[...$payload, 'api' => [['name' => 'broken', 'url' => 'invalid', 'interval' => 'never']]], 'api.0.url'],
+        [$missingNewArrays, 'domain_expiry'],
     ] as [$invalidPayload, $invalidKey]) {
         $this->postJson('/__harness/monitor-foundation/events', [
             'operation_id' => (string) Str::uuid(),

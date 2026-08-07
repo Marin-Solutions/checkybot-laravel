@@ -7,7 +7,10 @@ use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
 | Checkybot Monitoring Checks
 |--------------------------------------------------------------------------
 |
-| Define your monitoring checks using the fluent Checkybot API.
+| Define checks for the canonical check-sync.v1 payload. Existing fluent
+| methods remain compatible during a coordinated server/package upgrade.
+| Header/token secrets are sent only to the authenticated HTTPS API for
+| downstream encryption and are masked from package output and diagnostics.
 | These checks will be synced to your Checkybot instance when running:
 |
 |     php artisan checkybot:sync
@@ -62,10 +65,13 @@ Checkybot::ssl('main-certificate')
 
 // Checkybot::domainExpiry('primary-domain-expiry')
 //     ->url(config('app.url'))
-//     ->daily();
+//     ->daily()
+//     ->warnDays(30);
 
 // Response-time Budget Checks (defaults to p95 <= 2000 ms)
 
 // Checkybot::responseTimeBudget('homepage-p95')
 //     ->url(config('app.url'))
-//     ->everyFiveMinutes();
+//     ->everyFiveMinutes()
+//     ->percentile(95)
+//     ->budgetMs(2000);

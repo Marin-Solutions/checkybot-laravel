@@ -6,7 +6,9 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use MarinSolutions\CheckybotLaravel\CheckRegistry;
+use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Contracts\ContractValidator;
 use MarinSolutions\CheckybotLaravel\Exceptions\CheckybotSyncException;
 use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
 use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
@@ -303,6 +305,130 @@ it('keeps a fixed credential corpus only in the captured outbound HTTPS body', f
         return collect($secrets)->every(fn (string $secret): bool => ! str_contains($encoded, $secret));
     })->once();
 })->group('AC-laravel-sdk-monitor-definitions-3');
+
+it('validates exact fluent and config HTTP bodies against the foundation contract', function (): void {
+    $registry = app(CheckRegistry::class);
+    $registry->flush();
+    config([
+        'checkybot-laravel.api_key' => 'contract-key',
+        'checkybot-laravel.project_id' => 'contract-project',
+    ]);
+
+    Checkybot::uptime('up')->url('https://example.com/up')->everyMinute()->maxRedirects(4)->headers(['Accept' => 'text/html']);
+    Checkybot::ssl('ssl')->url('https://example.com/ssl')->daily();
+    Checkybot::api('api')->url('https://example.com/api')->everyFiveMinutes()
+        ->headers(['Accept' => 'application/json'])->expectStatus(200)->maxLatency(750)->retries(2)
+        ->expect('status')->toEqual('healthy');
+    Checkybot::links('links')->url('https://example.com/links')->daily()->maxDepth(2)
+        ->exclude(['/private/*'])->headers(['Accept' => 'text/html']);
+    Checkybot::openGraph('og')->url('https://example.com/og')->hourly()
+        ->requireTags(['og:title'])->headers(['Accept' => 'text/html']);
+    Checkybot::domainExpiry('domain')->url('https://example.com')->daily()->warnDays(45);
+    Checkybot::responseTimeBudget('budget')->url('https://example.com')->everyFiveMinutes()->percentile(95)->budgetMs(1800);
+
+    $capture = function () use (&$capturedBody): CheckybotClient {
+        $mock = new MockHandler([
+            function ($request) use (&$capturedBody) {
+                $capturedBody = json_decode((string) $request->getBody(), true);
+
+                return new Response(200, [], json_encode(['message' => 'ok', 'summary' => []], JSON_THROW_ON_ERROR));
+            },
+        ]);
+
+        return new CheckybotClient(
+            baseUrl: 'https://checkybot.example',
+            apiKey: 'contract-key',
+            projectId: 'contract-project',
+            retryDelay: 0,
+            client: new Client(['handler' => HandlerStack::create($mock)]),
+        );
+    };
+
+    $capturedBody = null;
+    $this->app->instance(CheckybotClient::class, $capture());
+    expect(Artisan::call('checkybot:sync'))->toBe(0);
+    $fluentBody = $capturedBody;
+
+    $registry->flush();
+    config(['checkybot-laravel.checks' => [
+        'uptime' => [[
+            'name' => 'up', 'url' => 'https://example.com/up', 'interval' => '1m',
+            'max_redirects' => 4, 'headers' => ['Accept' => 'text/html'],
+        ]],
+        'ssl' => [['name' => 'ssl', 'url' => 'https://example.com/ssl', 'interval' => '1d']],
+        'api' => [[
+            'name' => 'api', 'url' => 'https://example.com/api', 'interval' => '5m',
+            'headers' => ['Accept' => 'application/json'], 'expected_status' => 200,
+            'max_latency_ms' => 750, 'retry_count' => 2,
+            'assertions' => [['kind' => 'json_path', 'operator' => 'equals', 'path' => 'status', 'operand' => 'healthy']],
+        ]],
+        'dead_links' => [[
+            'name' => 'links', 'url' => 'https://example.com/links', 'interval' => '1d',
+            'max_depth' => 2, 'exclude_paths' => ['/private/*'], 'headers' => ['Accept' => 'text/html'],
+        ]],
+        'open_graph' => [[
+            'name' => 'og', 'url' => 'https://example.com/og', 'interval' => '1h',
+            'required_tags' => ['og:title'], 'headers' => ['Accept' => 'text/html'],
+        ]],
+        'domain_expiry' => [[
+            'name' => 'domain', 'url' => 'https://example.com', 'interval' => '1d', 'warn_days' => 45,
+        ]],
+        'response_time_budget' => [[
+            'name' => 'budget', 'url' => 'https://example.com', 'interval' => '5m',
+            'percentile' => 95, 'budget_ms' => 1800,
+        ]],
+    ]]);
+
+    $capturedBody = null;
+    $this->app->instance(CheckybotClient::class, $capture());
+    expect(Artisan::call('checkybot:sync'))->toBe(0);
+    $configBody = $capturedBody;
+
+    expect($fluentBody)->toBe($configBody)
+        ->and(array_keys($fluentBody))->toBe([
+            'contract_version', 'uptime', 'ssl', 'api', 'dead_links', 'open_graph',
+            'domain_expiry', 'response_time_budget',
+        ])
+        ->and($fluentBody['api'][0])->toMatchArray([
+            'expected_status' => 200, 'max_latency_ms' => 750, 'retry_count' => 2,
+        ])
+        ->and($fluentBody['api'][0]['assertions'])->toBe([
+            ['kind' => 'status', 'operator' => 'equals', 'operand' => 200, 'sort_order' => 1, 'is_active' => true],
+            ['kind' => 'latency', 'operator' => 'less_than_or_equal', 'operand' => 750, 'sort_order' => 2, 'is_active' => true],
+            ['kind' => 'json_path', 'operator' => 'equals', 'path' => 'status', 'operand' => 'healthy', 'sort_order' => 3, 'is_active' => true],
+        ]);
+
+    $contract = app(ContractValidator::class);
+    expect($contract->validateCheckSync($fluentBody))->toBe($fluentBody)
+        ->and($contract->validateCheckSync($configBody))->toBe($configBody);
+})->group('AC-laravel-sdk-monitor-definitions-9');
+
+it('rejects malformed package bodies at the foundation contract boundary', function (): void {
+    $valid = app(CheckRegistry::class)->flush()->toArray();
+    $contract = app(ContractValidator::class);
+    $cases = [];
+
+    $missing = $valid;
+    unset($missing['domain_expiry']);
+    $cases[] = $missing;
+    $missingBothNewArrays = $valid;
+    unset($missingBothNewArrays['domain_expiry'], $missingBothNewArrays['response_time_budget']);
+    $cases[] = $missingBothNewArrays;
+    $cases[] = [...$valid, 'contract_version' => 'check-sync.v999'];
+    $cases[] = [...$valid, 'uptime' => [['name' => 'bad', 'url' => 'not-a-url', 'interval' => 'never']]];
+    $cases[] = [...$valid, 'package_debug' => true];
+
+    foreach ($cases as $payload) {
+        expect(fn () => $contract->validateCheckSync($payload))->toThrow(ValidationException::class);
+    }
+
+    $this->postJson('/__harness/monitor-foundation/events', [
+        'operation_id' => '33333333-3333-4333-8333-333333333333',
+        'event_type' => 'contract.check_sync.probed',
+        'payload' => $missingBothNewArrays,
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors(['domain_expiry', 'response_time_budget']);
+})->group('AC-laravel-sdk-monitor-definitions-9');
 
 it('falls back to config when no fluent checks defined', function () {
     // Only config, no fluent API

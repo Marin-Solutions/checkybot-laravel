@@ -49,7 +49,10 @@ final readonly class DeterministicFakeEventDispatcher implements FoundationEvent
 
             if ($consumer === 'sdk') {
                 $receipt['schema_valid'] = true;
-                $receipt['check_types'] = ['uptime', 'ssl', 'api', 'dead_links', 'open_graph'];
+                $receipt['check_types'] = array_values(array_filter(
+                    ['uptime', 'ssl', 'api', 'dead_links', 'open_graph', 'domain_expiry', 'response_time_budget'],
+                    static fn (string $type): bool => array_key_exists($type, $sanitizedPayload),
+                ));
             }
 
             return $receipt;

@@ -211,6 +211,16 @@ final class CheckSyncPayloadSerializer
                 ];
             }
 
+            usort($normalizedAssertions, static function (array $left, array $right): int {
+                $rank = static fn (array $assertion): int => match ($assertion['kind'] ?? null) {
+                    'status' => 0,
+                    'latency' => 1,
+                    default => 2,
+                };
+
+                return $rank($left) <=> $rank($right);
+            });
+
             foreach ($normalizedAssertions as $index => &$assertion) {
                 $assertion['sort_order'] = $index + 1;
             }

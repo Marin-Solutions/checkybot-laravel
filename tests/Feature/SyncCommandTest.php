@@ -6,6 +6,9 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
+use Illuminate\Support\Facades\Artisan;
+use MarinSolutions\CheckybotLaravel\CheckRegistry;
+use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
 use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
 
 it('fails when api_key is not configured', function () {
@@ -603,6 +606,110 @@ it('fails validation for missing interval in config', function () {
         ->expectsOutputToContain('is missing an interval')
         ->assertExitCode(1);
 });
+
+it('counts and labels all seven config types without printing sensitive fields', function (): void {
+    $secret = 'config-dry-run-secret';
+    config([
+        'checkybot-laravel.api_key' => 'api-'.$secret,
+        'checkybot-laravel.project_id' => 'project',
+        'checkybot-laravel.checks' => [
+            'uptime' => [['name' => 'up', 'url' => 'https://example.com/up', 'interval' => '1m', 'headers' => ['Authorization' => $secret]]],
+            'ssl' => [['name' => 'ssl', 'url' => 'https://example.com/ssl', 'interval' => '1d']],
+            'api' => [['name' => 'api', 'url' => 'https://example.com/api', 'interval' => '5m', 'headers' => ['Cookie' => $secret]]],
+            'dead_links' => [['name' => 'links', 'url' => 'https://example.com/links', 'interval' => '1d']],
+            'open_graph' => [['name' => 'og', 'url' => 'https://example.com/og', 'interval' => '1h']],
+            'domain_expiry' => [['name' => 'domain', 'url' => 'https://example.com', 'interval' => '1d']],
+            'response_time_budget' => [['name' => 'budget', 'url' => 'https://example.com', 'interval' => '5m']],
+        ],
+    ]);
+
+    expect(Artisan::call('checkybot:sync', ['--dry-run' => true]))->toBe(0);
+    $output = Artisan::output();
+
+    expect($output)->toContain('Found 7 checks to sync')
+        ->and($output)->toContain('Uptime Checks (1):', 'Ssl Checks (1):', 'Api Checks (1):', 'Link Checks (1):')
+        ->and($output)->toContain('OpenGraph Checks (1):', 'Domain Expiry Checks (1):', 'Response Time Budget Checks (1):')
+        ->and($output)->not->toContain($secret)
+        ->and($output)->not->toContain('Authorization', 'Cookie');
+})->group('AC-laravel-sdk-monitor-definitions-7');
+
+it('counts and labels all seven registry types without printing sensitive fields', function (): void {
+    $secret = 'registry-dry-run-secret';
+    app(CheckRegistry::class)->flush();
+    config(['checkybot-laravel.api_key' => 'key', 'checkybot-laravel.project_id' => 'project']);
+
+    Checkybot::uptime('up')->url('https://example.com/up')->everyMinute()->headers(['Authorization' => $secret]);
+    Checkybot::ssl('ssl')->url('https://example.com/ssl')->daily();
+    Checkybot::api('api')->url('https://example.com/api')->everyFiveMinutes()->withToken($secret);
+    Checkybot::links('links')->url('https://example.com/links')->daily();
+    Checkybot::openGraph('og')->url('https://example.com/og')->hourly();
+    Checkybot::domainExpiry('domain')->url('https://example.com')->daily();
+    Checkybot::responseTimeBudget('budget')->url('https://example.com')->everyFiveMinutes();
+
+    expect(Artisan::call('checkybot:sync', ['--dry-run' => true]))->toBe(0);
+    $output = Artisan::output();
+
+    expect($output)->toContain('Found 7 checks to sync')
+        ->and($output)->toContain('Uptime Checks (1):', 'Ssl Checks (1):', 'Api Checks (1):', 'Link Checks (1):')
+        ->and($output)->toContain('OpenGraph Checks (1):', 'Domain Expiry Checks (1):', 'Response Time Budget Checks (1):')
+        ->and($output)->not->toContain($secret)
+        ->and($output)->not->toContain('Authorization');
+})->group('AC-laravel-sdk-monitor-definitions-7');
+
+it('normalizes canonical and legacy seven-type summaries including absent operation counts', function (): void {
+    config([
+        'checkybot-laravel.api_key' => 'key',
+        'checkybot-laravel.project_id' => 'project',
+        'checkybot-laravel.checks' => [],
+    ]);
+    $responses = [
+        ['summary' => [
+            'uptime' => ['created' => 1],
+            'ssl' => ['updated' => 2],
+            'api' => ['deleted' => 3],
+            'dead_links' => ['created' => 4, 'updated' => 5, 'deleted' => 6],
+            'open_graph' => [],
+            'domain_expiry' => ['created' => 7],
+            'response_time_budget' => ['updated' => 8],
+        ]],
+        ['summary' => [
+            'uptime_checks' => ['created' => 11],
+            'ssl_checks' => ['updated' => 12],
+            'api_checks' => ['deleted' => 13],
+            'link_checks' => ['created' => 14],
+            'open_graph_checks' => ['updated' => 15],
+            'domain_expiry_checks' => ['deleted' => 16],
+            'response_time_budget_checks' => ['created' => 17],
+        ]],
+    ];
+    $mock = new MockHandler(array_map(
+        fn (array $body): Response => new Response(200, [], json_encode($body, JSON_THROW_ON_ERROR)),
+        $responses,
+    ));
+    $this->app->instance(CheckybotClient::class, new CheckybotClient(
+        baseUrl: 'https://checkybot.example',
+        apiKey: 'key',
+        projectId: 'project',
+        retryDelay: 0,
+        client: new Client(['handler' => HandlerStack::create($mock)]),
+    ));
+
+    expect(Artisan::call('checkybot:sync'))->toBe(0);
+    $canonical = Artisan::output();
+    expect($canonical)->toContain("Uptime Checks:\n    Created: 1\n    Updated: 0\n    Deleted: 0")
+        ->and($canonical)->toContain("Ssl Checks:\n    Created: 0\n    Updated: 2\n    Deleted: 0")
+        ->and($canonical)->toContain("Api Checks:\n    Created: 0\n    Updated: 0\n    Deleted: 3")
+        ->and($canonical)->toContain("Domain Expiry Checks:\n    Created: 7\n    Updated: 0\n    Deleted: 0")
+        ->and($canonical)->toContain("Response Time Budget Checks:\n    Created: 0\n    Updated: 8\n    Deleted: 0");
+
+    expect(Artisan::call('checkybot:sync'))->toBe(0);
+    $legacy = Artisan::output();
+    expect($legacy)->toContain("Uptime Checks:\n    Created: 11\n    Updated: 0\n    Deleted: 0")
+        ->and($legacy)->toContain("Link Checks:\n    Created: 14\n    Updated: 0\n    Deleted: 0")
+        ->and($legacy)->toContain("OpenGraph Checks:\n    Created: 0\n    Updated: 15\n    Deleted: 0")
+        ->and($legacy)->toContain("Domain Expiry Checks:\n    Created: 0\n    Updated: 0\n    Deleted: 16")
+        ->and($legacy)->toContain("Response Time Budget Checks:\n    Created: 17\n    Updated: 0\n    Deleted: 0");
+})->group('AC-laravel-sdk-monitor-definitions-7');
 
 it('syncs with all five check types populated', function () {
     config([
