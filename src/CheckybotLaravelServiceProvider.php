@@ -3,6 +3,7 @@
 namespace MarinSolutions\CheckybotLaravel;
 
 use MarinSolutions\CheckybotLaravel\Commands\CheckybotCommand;
+use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\MonitoringFoundationServiceProvider;
 use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
@@ -19,6 +20,8 @@ class CheckybotLaravelServiceProvider extends PackageServiceProvider
 
     public function packageRegistered(): void
     {
+        $this->app->register(MonitoringFoundationServiceProvider::class);
+
         // Register CheckRegistry as singleton
         $this->app->singleton(CheckRegistry::class, function () {
             return new CheckRegistry;

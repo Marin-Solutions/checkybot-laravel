@@ -1,0 +1,1 @@
+{"targets":["backend"],"verification":[{"target":"backend","cwd":".","commands":["npm --prefix packages/contracts test && npx tsc --noEmit --skipLibCheck packages/contracts/generated/monitor-foundation.ts","./vendor/bin/pest tests/Unit/MonitoringFoundation tests/Feature/MonitoringFoundation --compact","./vendor/bin/phpstan analyse --no-progress"]}],"artifacts":["test_results"]}

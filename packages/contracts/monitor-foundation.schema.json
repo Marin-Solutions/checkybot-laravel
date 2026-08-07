@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://checkybot.dev/contracts/monitor-foundation.v1.schema.json",
+  "title": "Checkybot Monitor Foundation Contracts",
+  "$defs": {
+    "monitorType": {"type": "string", "enum": ["server", "website", "api"]},
+    "lifecycleState": {"type": "string", "enum": ["healthy", "warn", "down", "recovering"]},
+    "severity": {"type": "string", "enum": ["warn", "critical"]},
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id", "monitor_id", "type"],
+      "properties": {
+        "project_id": {"type": "string", "format": "uuid"},
+        "monitor_id": {"type": "string", "format": "uuid"},
+        "type": {"$ref": "#/$defs/monitorType"}
+      }
+    },
+    "filter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["types", "states", "severities"],
+      "properties": {
+        "types": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/monitorType"}},
+        "states": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/lifecycleState"}},
+        "severities": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/severity"}}
+      }
+    },
+    "transition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contract_version", "identity", "from_state", "to_state", "severity", "filter", "occurred_at"],
+      "properties": {
+        "contract_version": {"const": "monitor-foundation.v1"},
+        "identity": {"$ref": "#/$defs/identity"},
+        "from_state": {"$ref": "#/$defs/lifecycleState"},
+        "to_state": {"$ref": "#/$defs/lifecycleState"},
+        "severity": {"$ref": "#/$defs/severity"},
+        "filter": {"$ref": "#/$defs/filter"},
+        "occurred_at": {"type": "string", "format": "date-time"}
+      }
+    },
+    "statusCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["healthy", "warn", "down"],
+      "properties": {
+        "healthy": {"type": "integer", "minimum": 0},
+        "warn": {"type": "integer", "minimum": 0},
+        "down": {"type": "integer", "minimum": 0}
+      }
+    },
+    "statusSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["counts", "updated_at", "stale"],
+      "properties": {
+        "counts": {
+          "type": "object", "additionalProperties": false, "required": ["servers", "websites", "apis"],
+          "properties": {
+            "servers": {"$ref": "#/$defs/statusCounts"},
+            "websites": {"$ref": "#/$defs/statusCounts"},
+            "apis": {"$ref": "#/$defs/statusCounts"}
+          }
+        },
+        "updated_at": {"type": ["string", "null"], "format": "date-time"},
+        "stale": {"type": "boolean"}
+      }
+    },
+    "incident": {
+      "type": "object", "additionalProperties": false,
+      "required": ["contract_version", "incident_id", "log_lines"],
+      "properties": {
+        "contract_version": {"const": "monitor-foundation.v1"},
+        "incident_id": {"type": "string", "format": "uuid"},
+        "log_lines": {"type": "array", "minItems": 1, "maxItems": 50, "items": {"type": "string", "maxLength": 2000}}
+      }
+    },
+    "check": {
+      "type": "object", "required": ["name", "url", "interval"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "maxLength": 255},
+        "url": {"type": "string", "format": "uri", "pattern": "^https?://"},
+        "interval": {"type": "string", "pattern": "^\\d+[smhd]$"}
+      }
+    },
+    "checkSync": {
+      "type": "object", "additionalProperties": false,
+      "required": ["contract_version", "uptime", "ssl", "api", "dead_links", "open_graph"],
+      "properties": {
+        "contract_version": {"const": "check-sync.v1"},
+        "uptime": {"type": "array", "items": {"$ref": "#/$defs/check"}},
+        "ssl": {"type": "array", "items": {"$ref": "#/$defs/check"}},
+        "api": {"type": "array", "items": {"$ref": "#/$defs/check"}},
+        "dead_links": {"type": "array", "items": {"$ref": "#/$defs/check"}},
+        "open_graph": {"type": "array", "items": {"$ref": "#/$defs/check"}}
+      }
+    }
+  }
+}
