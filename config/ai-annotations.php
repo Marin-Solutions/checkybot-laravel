@@ -10,6 +10,13 @@ return [
         'connect_timeout_seconds' => (float) env('AI_ANNOTATIONS_CONNECT_TIMEOUT', 3),
         'timeout_seconds' => (float) env('AI_ANNOTATIONS_REQUEST_TIMEOUT', 10),
         'max_response_bytes' => (int) env('AI_ANNOTATIONS_MAX_RESPONSE_BYTES', 65536),
+        'harness_fake' => (bool) env('AI_ANNOTATIONS_HARNESS_FAKE', false),
+        'harness_root_cause' => env('AI_ANNOTATIONS_HARNESS_ROOT_CAUSE', 'The bounded server logs indicate upstream saturation caused the confirmed outage.'),
+        'harness_billed_microusd' => (int) env('AI_ANNOTATIONS_HARNESS_BILLED_MICROUSD', 10),
+    ],
+    'incident_window' => [
+        'before_seconds' => (int) env('AI_ANNOTATIONS_INCIDENT_WINDOW_BEFORE_SECONDS', 300),
+        'after_seconds' => (int) env('AI_ANNOTATIONS_INCIDENT_WINDOW_AFTER_SECONDS', 60),
     ],
     'budget' => [
         'global_monthly_limit_microusd' => (int) env('AI_ANNOTATIONS_GLOBAL_MONTHLY_LIMIT_MICROUSD', 0),

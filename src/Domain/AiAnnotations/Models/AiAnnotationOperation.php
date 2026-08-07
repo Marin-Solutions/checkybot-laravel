@@ -12,6 +12,11 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $transition_operation_id
  * @property string $project_id
  * @property string $status
+ * @property string|null $skip_reason
+ * @property int $snippet_line_count
+ * @property bool $snippet_truncated
+ * @property string|null $redaction_version
+ * @property array<string, mixed>|null $notification_side_effects
  */
 final class AiAnnotationOperation extends Model
 {
@@ -21,7 +26,11 @@ final class AiAnnotationOperation extends Model
 
     protected function casts(): array
     {
-        return ['snippet_line_count' => 'integer', 'snippet_truncated' => 'boolean'];
+        return [
+            'snippet_line_count' => 'integer',
+            'snippet_truncated' => 'boolean',
+            'notification_side_effects' => 'array',
+        ];
     }
 
     public function scopeForProject(Builder $query, string $projectId): Builder

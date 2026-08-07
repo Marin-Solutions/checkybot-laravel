@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace MarinSolutions\CheckybotLaravel\Domain\Alerting\Queries;
 
 use Illuminate\Auth\Access\AuthorizationException;
+use MarinSolutions\CheckybotLaravel\Domain\AiAnnotations\Queries\LatestRootCause;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Contracts\AuthorizedMonitorIdentity;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Models\IncidentGroup;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Models\IncidentGroupMember;
@@ -13,13 +14,15 @@ use MarinSolutions\CheckybotLaravel\Models\MonitorTransition;
 
 final class IncidentTimelineReadModel
 {
+    public function __construct(private readonly LatestRootCause $rootCauses) {}
+
     /**
      * @return array{
      *   current_state: string,
      *   entered_at: string,
      *   transitions: list<array<string, mixed>>,
      *   incident_groups: list<array<string, mixed>>,
-     *   annotation_slots: list<array{key: string, value: null}>
+     *   annotation_slots: list<array{key: string, value: string|null}>
      * }|null
      */
     public function forMonitor(AuthorizedMonitorIdentity $authorized): ?array
@@ -103,7 +106,7 @@ final class IncidentTimelineReadModel
             'incident_groups' => $groups,
             'annotation_slots' => [
                 ['key' => 'summary', 'value' => null],
-                ['key' => 'root_cause', 'value' => null],
+                ['key' => 'root_cause', 'value' => $this->rootCauses->forMonitor($identity)],
                 ['key' => 'customer_impact', 'value' => null],
                 ['key' => 'remediation', 'value' => null],
             ],

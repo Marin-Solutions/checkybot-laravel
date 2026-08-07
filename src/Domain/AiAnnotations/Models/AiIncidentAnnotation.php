@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace MarinSolutions\CheckybotLaravel\Domain\AiAnnotations\Models;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use LogicException;
@@ -13,6 +14,7 @@ use LogicException;
  * @property string $transition_operation_id
  * @property string $project_id
  * @property string $root_cause
+ * @property CarbonImmutable $generated_at
  */
 final class AiIncidentAnnotation extends Model
 {
