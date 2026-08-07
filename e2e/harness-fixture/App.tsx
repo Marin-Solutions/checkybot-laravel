@@ -1,5 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  getStatusSummary,
+  StatusSummary,
+} from '../../packages/contracts/generated/monitor-foundation';
+import {
   ActivityIndicator,
   Pressable,
   StyleSheet,
@@ -29,6 +33,7 @@ export type HarnessApi = {
   ready(): Promise<ReadyResponse>;
   create(probeId: string): Promise<QueuedResponse>;
   probe(probeId: string): Promise<ProbeResponse>;
+  summary(): Promise<StatusSummary>;
 };
 
 async function responseJson<T>(response: Response): Promise<T> {
@@ -59,6 +64,7 @@ export const browserHarnessApi: HarnessApi = {
   probe: async (probeId) => responseJson<ProbeResponse>(await fetch(`/__harness/queue-probes/${probeId}`, {
     headers: { Accept: 'application/json' },
   })),
+  summary: async () => (await getStatusSummary('cbp_harness_status_read_token')).data,
 };
 
 type FixtureState = 'starting' | 'ready' | 'queued' | 'processed' | 'error';
@@ -84,6 +90,7 @@ export function HarnessFixture({
   const [runId, setRunId] = useState<string>('');
   const [probeId, setProbeId] = useState<string>('');
   const [processedAt, setProcessedAt] = useState<string>('');
+  const [summary, setSummary] = useState<StatusSummary | null>(null);
   const [error, setError] = useState<string>('');
   const mounted = useRef(true);
   const probeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -103,7 +110,8 @@ export function HarnessFixture({
 
         setRunId(readiness.run_id);
         if (readiness.app === 'ready' && readiness.queue === 'ready') {
-          setState('ready');
+          setSummary(await api.summary());
+          if (mounted.current) setState('ready');
           return;
         }
         if (readiness.app === 'failed' || readiness.queue === 'failed') {
@@ -196,6 +204,24 @@ export function HarnessFixture({
           )}
         </View>
 
+        {summary ? (
+          <View style={styles.summary} testID="status-summary">
+            <Text style={styles.label}>Canonical status summary</Text>
+            {(['servers', 'websites', 'apis'] as const).map((type) => (
+              <View key={type} style={styles.summaryRow}>
+                <Text style={styles.summaryType}>{type}</Text>
+                {(['healthy', 'warn', 'down'] as const).map((cell) => (
+                  <Text key={cell} testID={`status-${type}-${cell}`} style={styles.summaryCell}>
+                    {cell}: {summary.counts[type][cell]}
+                  </Text>
+                ))}
+              </View>
+            ))}
+            <Text testID="status-updated-at" style={styles.timestamp}>Updated at {summary.updated_at ?? 'null'}</Text>
+            <Text testID="status-stale" style={styles.timestamp}>Stale: {String(summary.stale)}</Text>
+          </View>
+        ) : null}
+
         {runId ? <Text style={styles.runId}>Run ID: {runId}</Text> : null}
 
         {state === 'ready' && (
@@ -235,6 +261,10 @@ const styles = StyleSheet.create({
   title: { color: '#0f172a', fontSize: 28, fontWeight: '700' },
   subtitle: { color: '#64748b', fontSize: 15, marginTop: 6 },
   statusPanel: { backgroundColor: '#f8fafc', borderRadius: 12, marginTop: 28, padding: 20 },
+  summary: { backgroundColor: '#f8fafc', borderRadius: 12, marginTop: 18, padding: 20 },
+  summaryRow: { alignItems: 'center', flexDirection: 'row', gap: 12, marginTop: 8 },
+  summaryType: { color: '#0f172a', fontSize: 14, fontWeight: '700', width: 72 },
+  summaryCell: { color: '#334155', fontFamily: 'monospace', fontSize: 12 },
   label: { color: '#64748b', fontSize: 12, fontWeight: '700', letterSpacing: 1, marginBottom: 14, textTransform: 'uppercase' },
   row: { alignItems: 'center', flexDirection: 'row', gap: 10 },
   dot: { borderRadius: 6, height: 12, width: 12 },

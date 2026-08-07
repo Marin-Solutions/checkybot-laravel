@@ -200,6 +200,13 @@ export HARNESS_BACKEND_PORT="$PORT"
 if ! php "${ROOT}/scripts/harness/initialize.php" "$DB_DATABASE_VALUE" >> "${RUN_DIR}/runtime.log" 2>&1; then
     fail database-initialization 'Unable to initialize the run-scoped SQLite queue state.'
 fi
+printf '[stage=database-verified] connection=sqlite database=%s\n' "$DB_DATABASE_VALUE" >> "${RUN_DIR}/runtime.log"
+if ! php "${ROOT}/scripts/harness/artisan" migrate --force --no-interaction >> "${RUN_DIR}/runtime.log" 2>&1; then
+    fail database-migration 'Unable to migrate the run-scoped SQLite foundation state.'
+fi
+if ! php "${ROOT}/scripts/harness/seed-status-summary.php" "$DB_DATABASE_VALUE" >> "${RUN_DIR}/runtime.log" 2>&1; then
+    fail database-seed 'Unable to seed the run-scoped status-summary token.'
+fi
 
 printf '%s\n' "[stage=app-start] http://127.0.0.1:${PORT}" >> "${RUN_DIR}/app.log"
 if [[ "${HARNESS_TEST_APP_MODE:-}" == 'timeout' ]]; then

@@ -15,6 +15,7 @@ use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Delivery\Founda
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Delivery\FoundationEventProcessor;
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Delivery\RetryableFailureFake;
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Delivery\TerminalFailureFake;
+use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Queries\StatusSummaryQuery;
 use MarinSolutions\CheckybotLaravel\Domain\Security\Foundation\RecursiveRedactor;
 
 final class DeliverFoundationEvent implements ShouldQueue
@@ -33,7 +34,7 @@ final class DeliverFoundationEvent implements ShouldQueue
             : (app()->bound(FoundationEventProcessor::class)
                 ? app(FoundationEventProcessor::class)
                 : new FoundationEventProcessor(
-                    new DeterministicFakeEventDispatcher,
+                    new DeterministicFakeEventDispatcher(new StatusSummaryQuery),
                     RecursiveRedactor::fromConfiguration(),
                 ));
 

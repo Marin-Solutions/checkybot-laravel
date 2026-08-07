@@ -166,6 +166,17 @@ try {
       HARNESS_PLAYWRIGHT_OUTPUT: resolve(runDir, 'playwright'),
       HARNESS_PROBE_EVIDENCE: resolve(runDir, 'probe-evidence.json'),
       HARNESS_SCREENSHOT: resolve(runDir, 'processed.png'),
+      HARNESS_STATUS_EVIDENCE: resolve(runDir, 'status-summary-evidence.json'),
+      HARNESS_STATUS_SCREENSHOT: resolve(runDir, 'status-summary.png'),
+      APP_ENV: 'harness',
+      APP_KEY: 'base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+      DB_CONNECTION: 'sqlite',
+      DB_DATABASE: resolve(runDir, 'database.sqlite'),
+      QUEUE_CONNECTION: 'database',
+      CACHE_STORE: 'array',
+      SESSION_DRIVER: 'array',
+      HARNESS_RUN_ID: runId,
+      HARNESS_RUN_DIR: runDir,
     },
   });
 
@@ -174,6 +185,14 @@ try {
   const evidence = JSON.parse(readFileSync(evidencePath, 'utf8'));
   if (!evidence.processed_at || evidence.post_status !== 202 || evidence.get_status !== 200) {
     throw new Error('Queue probe evidence does not prove accepted and processed contract responses');
+  }
+  const statusEvidencePath = resolve(runDir, 'status-summary-evidence.json');
+  if (!existsSync(statusEvidencePath)) throw new Error('Playwright did not emit status-summary evidence');
+  const statusEvidence = JSON.parse(readFileSync(statusEvidencePath, 'utf8'));
+  if (statusEvidence.relay?.exit !== 0
+    || statusEvidence.receipt_responses?.length !== 3
+    || statusEvidence.status_summary_response?.data?.stale !== false) {
+    throw new Error('Status-summary evidence does not prove relay receipts and authenticated freshness');
   }
 
   const recordedPids = Object.fromEntries(

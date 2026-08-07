@@ -3,9 +3,14 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Route;
+use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Http\AuthenticateStatusSummaryToken;
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Http\FoundationEventController;
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Http\FoundationReceiptController;
 use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Http\RequireLoopback;
+use MarinSolutions\CheckybotLaravel\Http\Controllers\StatusSummaryController;
+
+Route::middleware(['api', AuthenticateStatusSummaryToken::class])
+    ->get('/api/status-summary', StatusSummaryController::class);
 
 if (app()->environment(['testing', 'harness'])) {
     Route::middleware('api')->group(static function (): void {

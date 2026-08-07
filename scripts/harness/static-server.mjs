@@ -30,6 +30,7 @@ function proxyRequest(request, response) {
     headers: {
       accept: request.headers.accept || 'application/json',
       'content-type': request.headers['content-type'] || 'application/json',
+      ...(request.headers.authorization ? { authorization: request.headers.authorization } : {}),
     },
     body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request,
     duplex: 'half',
@@ -49,7 +50,7 @@ function proxyRequest(request, response) {
 
 const server = createServer((request, response) => {
   const requestUrl = new URL(request.url || '/', `http://${host}:${port}`);
-  if (requestUrl.pathname.startsWith('/__harness/')) {
+  if (requestUrl.pathname.startsWith('/__harness/') || requestUrl.pathname.startsWith('/api/')) {
     proxyRequest(request, response);
     return;
   }

@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Delivery;
 
+use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Queries\StatusSummaryQuery;
 use MarinSolutions\CheckybotLaravel\Models\OutboxEvent;
 
-final class DeterministicFakeEventDispatcher implements FoundationEventDispatcher
+final readonly class DeterministicFakeEventDispatcher implements FoundationEventDispatcher
 {
+    public function __construct(private StatusSummaryQuery $statusSummary) {}
+
     public function dispatch(OutboxEvent $event, array $sanitizedPayload): array
     {
         $consumers = match ($event->event_type) {
@@ -30,11 +33,17 @@ final class DeterministicFakeEventDispatcher implements FoundationEventDispatche
             ];
 
             if ($event->event_type === 'monitor.transitioned') {
+                $summary = $this->statusSummary->forProject($sanitizedPayload['identity']['project_id']);
                 $receipt += [
                     'identity' => $sanitizedPayload['identity'],
                     'state' => $sanitizedPayload['to_state'],
                     'severity' => $sanitizedPayload['severity'],
                     'filter' => $sanitizedPayload['filter'],
+                    'status_summary' => [
+                        'counts' => $summary->counts,
+                        'updated_at' => $summary->updatedAt?->utc()->toISOString(),
+                        'stale' => $summary->stale,
+                    ],
                 ];
             }
 

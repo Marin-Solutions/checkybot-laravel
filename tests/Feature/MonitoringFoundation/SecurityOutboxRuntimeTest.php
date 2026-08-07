@@ -55,14 +55,9 @@ function runSecurityOutboxQueueWorker(string $database, array $environment = [])
     $root = dirname(__DIR__, 3);
     $process = new Process([
         PHP_BINARY,
-        $root.'/vendor/bin/testbench',
-        'queue:work',
-        'database',
-        '--stop-when-empty',
-        '--sleep=1',
-        '--tries=1',
-        '--timeout=15',
-        '--no-interaction',
+        __DIR__.'/Support/queue-worker.php',
+        $root,
+        $database,
     ], $root, array_merge([
         'APP_ENV' => 'testing',
         'APP_KEY' => 'base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',

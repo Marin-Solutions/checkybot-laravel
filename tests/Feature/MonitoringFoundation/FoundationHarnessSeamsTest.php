@@ -26,17 +26,13 @@ function foundationTransitionPayload(string $projectId, string $monitorId): arra
 /** @param array<string, string> $environment */
 function runFoundationQueueWorker(string $database, array $environment = []): Process
 {
+    $root = dirname(__DIR__, 3);
     $process = new Process([
         PHP_BINARY,
-        dirname(__DIR__, 3).'/vendor/bin/testbench',
-        'queue:work',
-        'database',
-        '--stop-when-empty',
-        '--sleep=1',
-        '--tries=1',
-        '--timeout=15',
-        '--no-interaction',
-    ], dirname(__DIR__, 3), array_merge([
+        __DIR__.'/Support/queue-worker.php',
+        $root,
+        $database,
+    ], $root, array_merge([
         'APP_ENV' => 'testing',
         'APP_KEY' => 'base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
         'DB_CONNECTION' => 'sqlite',

@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
+use MarinSolutions\CheckybotLaravel\CheckybotLaravelServiceProvider;
 
 require_once __DIR__.'/autoload.php';
 
@@ -20,6 +21,7 @@ $root = dirname(__DIR__, 3);
 putenv('COMPOSER_VENDOR_DIR='.$root.'/vendor');
 
 $app = Application::configure(basePath: dirname(__DIR__))
+    ->withProviders([CheckybotLaravelServiceProvider::class])
     ->withRouting(using: static function (): void {
         if (! HarnessAccess::routesAreEnabled()) {
             return;

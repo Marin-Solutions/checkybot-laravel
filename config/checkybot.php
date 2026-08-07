@@ -8,6 +8,9 @@ return [
         'check_sync_version' => 'check-sync.v1',
         'relay_batch_size' => 100,
         'relay_claim_seconds' => 60,
+        'status_summary' => [
+            'stale_after_seconds' => 900,
+        ],
         'delivery' => [
             'max_attempts' => 3,
             'backoff_seconds' => [5, 30, 120],
