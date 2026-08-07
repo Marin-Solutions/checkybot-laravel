@@ -1,0 +1,18 @@
+
+Running 1 test using 1 worker
+
+[1A[2K[1/1] tests/Feature/WebDashboard/ApiAssertionBuilderRuntime.spec.ts:9:5 › canonical alerting, Inertia, maintenance, sample, save, and fallback journey
+[1A[2Ktests/Feature/WebDashboard/ApiAssertionBuilderRuntime.spec.ts:9:5 › canonical alerting, Inertia, maintenance, sample, save, and fallback journey
+[stage=relay] executing registered foundation relay
+
+
+[1A[2K[32mRelayed 2 foundation event(s).[39m
+
+
+[1A[2KSeeded active project maintenance.
+
+
+[1A[2K[stage=maintenance] active project window seeded after down confirmation
+
+
+[1A[2K  1 passed (4.8s)
