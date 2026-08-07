@@ -1,0 +1,430 @@
+{
+  "slice_key": "push-mobile-widget-status",
+  "base_requirements": [
+    "Canvas slice mandate: ship the Expo mobile shell, device registration, NotificationIntentCreated-to-Expo delivery, four-week dual-send reliability evidence, one iOS WidgetKit status widget, refresh wiring, deep links, and mobile status states",
+    "PRD 5.3 and 5.5: grouped incident and recovery intents become push notifications; critical pushes are Time Sensitive with sound, warn pushes are silent and badge-visible, and critical notifications remain dual-sent through the existing generic webhook during a four-week proving period",
+    "PRD 6.1: the app is a thin Expo React Native status client, iOS-first while remaining Android-buildable; only the widget is iOS-only",
+    "PRD 6.2: exactly one iOS 3x3 widget reads GET /api/status-summary directly, displays nine counts and age, becomes visually stale after 15 minutes, and deep-links to filtered problems",
+    "Inherited MonitorDomainContracts: use server|website|api, healthy|warn|down, warn|critical, freshness, monitor-filter, redaction, and operation-idempotent outbox contracts without redefining them",
+    "Inherited NotificationIntentCreated: consume grouped incident|recovery intents with affected monitor identities, stable thread key, severity, and problem filter",
+    "Canvas integration requirement: feature and component tests plus a canonical full-runtime Playwright journey use real HTTP, the registered outbox relay/listener, and the real queue worker"
+  ],
+  "ownership": {
+    "files": [
+      "app/Domain/Push",
+      "app/Http/Controllers/PushDeviceController.php",
+      "app/Jobs/Push",
+      "app/Notifications/Channels/ExpoPushChannel.php",
+      "database/migrations/2026_08_06_020000-2026_08_06_029999",
+      "mobile",
+      "routes/push.php",
+      "tests/Component/MobileStatus",
+      "tests/Feature/PushNotifications",
+      "tests/Unit/PushNotifications"
+    ],
+    "migration_timestamp_range": "2026_08_06_020000-2026_08_06_029999"
+  },
+  "api_contract": [
+    {
+      "route": "POST /api/v1/push-devices",
+      "request": {
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer <existing authenticated mobile-user credential>"
+        },
+        "body": {
+          "installation_id": "UUID stable for one app installation",
+          "expo_push_token": "ExponentPushToken[...] or ExpoPushToken[...] string",
+          "platform": "ios|android",
+          "project_uuid": "UUID of a project the authenticated user may access",
+          "permission": "granted|provisional",
+          "app_version": "bounded semantic/build version string"
+        },
+        "validation": "Reject malformed UUIDs, unsupported platforms, denied permission, malformed Expo tokens, and app_version longer than 64 characters. The pair user_id+installation_id is unique; replay updates a rotated Expo token instead of creating a second active device.",
+        "authorization": "The existing authenticated user guard is required. The user must be authorized for project_uuid and cannot register an installation for another user. Project status-summary tokens do not authorize this write."
+      },
+      "response": {
+        "201": {
+          "data": {
+            "id": "UUID",
+            "installation_id": "UUID",
+            "platform": "ios|android",
+            "project_uuid": "UUID",
+            "active": true,
+            "registered_at": "RFC3339 UTC datetime"
+          }
+        },
+        "200": "The same data shape when an existing installation is refreshed or its token rotates",
+        "401": {
+          "message": "Unauthenticated."
+        },
+        "403": {
+          "message": "The user cannot register a device for this project."
+        },
+        "422": {
+          "message": "string",
+          "errors": "object keyed by invalid field"
+        }
+      },
+      "consumed_by": "frontend"
+    },
+    {
+      "route": "DELETE /api/v1/push-devices/{push_device}",
+      "request": {
+        "path": {
+          "push_device": "UUID returned by device registration"
+        },
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer <existing authenticated mobile-user credential>"
+        },
+        "authorization": "Only the authenticated owner may deactivate the device; another user's UUID is not disclosed."
+      },
+      "response": {
+        "204": "The device is inactive and receives no later intents; replay is idempotent",
+        "401": {
+          "message": "Unauthenticated."
+        },
+        "404": {
+          "message": "Push device not found."
+        }
+      },
+      "consumed_by": "frontend"
+    },
+    {
+      "route": "GET /api/status-summary",
+      "request": {
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer <active ProjectApiToken with status:read>"
+        },
+        "query": {},
+        "validation": "The token chooses the project; clients cannot provide a project override.",
+        "authorization": "Missing or invalid tokens return 401; active tokens without status:read return 403. The app stores the token in platform secure storage and shares it with the iOS extension through the configured secure App Group container."
+      },
+      "response": {
+        "200": {
+          "data": {
+            "counts": {
+              "servers": {
+                "healthy": "non-negative integer",
+                "warn": "non-negative integer",
+                "down": "non-negative integer"
+              },
+              "websites": {
+                "healthy": "non-negative integer",
+                "warn": "non-negative integer",
+                "down": "non-negative integer"
+              },
+              "apis": {
+                "healthy": "non-negative integer",
+                "warn": "non-negative integer",
+                "down": "non-negative integer"
+              }
+            },
+            "updated_at": "RFC3339 UTC datetime|null",
+            "stale": "boolean; true when updated_at is null or older than 900 seconds"
+          }
+        },
+        "401": {
+          "message": "Unauthenticated."
+        },
+        "403": {
+          "message": "This token cannot read status summaries."
+        }
+      },
+      "consumed_by": "frontend"
+    },
+    {
+      "route": "OUTBOX NotificationIntentCreated",
+      "request": {
+        "contract_version": "notification-intent.v1",
+        "operation_id": "UUID dedupe key",
+        "intent_id": "UUID",
+        "phase": "incident|recovery",
+        "project_uuid": "UUID",
+        "group_id": "UUID",
+        "severity": "warn|critical",
+        "affected_monitors": "non-empty array of shared MonitorIdentity objects",
+        "notification_thread_key": "stable string shared by incident and recovery",
+        "problem_filter": {
+          "route": "problems",
+          "monitor_uuids": "non-empty unique UUID array"
+        },
+        "opened_at": "RFC3339 UTC datetime",
+        "emitted_at": "RFC3339 UTC datetime",
+        "downtime_seconds": "non-negative integer for recovery; null for incident",
+        "delivery": "At-least-once outbox transport; the push listener deduplicates by operation_id before fan-out."
+      },
+      "response": {
+        "consumer_ack": "queued|duplicate|processed|failed",
+        "dedupe_key": "operation_id",
+        "delivery_receipts": "one redacted receipt per eligible device and required channel"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "POST https://exp.host/--/api/v2/push/send (outbound)",
+      "request": {
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer <optional Expo access token from runtime secret configuration>"
+        },
+        "body": {
+          "to": "active registered Expo token",
+          "title": "grouped incident or recovery title",
+          "body": "grouped, bounded, non-secret message",
+          "data": {
+            "route": "problems",
+            "projectUuid": "UUID",
+            "groupId": "UUID",
+            "monitorUuids": "unique UUID array",
+            "phase": "incident|recovery",
+            "severity": "warn|critical",
+            "threadKey": "stable string",
+            "refreshWidget": true
+          },
+          "priority": "high for critical; default for warn",
+          "sound": "default for critical; null/omitted for warn",
+          "interruptionLevel": "time-sensitive for critical; passive for warn",
+          "badge": "non-negative current problem count",
+          "_contentAvailable": "true so iOS may accelerate app/widget refresh"
+        },
+        "validation": "Payload values derive only from NotificationIntentCreated and shared monitor contracts. No secret, header value, raw provider response, or unbounded monitor metadata is included. Requests are chunked to Expo limits and are idempotently associated with operation_id+device_id.",
+        "authorization": "Outbound provider access uses runtime secret configuration; credentials are masked from logs and receipts."
+      },
+      "response": {
+        "200": {
+          "data": [
+            {
+              "status": "ok|error",
+              "id": "Expo ticket ID when accepted",
+              "message": "redacted provider message when rejected",
+              "details": "redacted provider error code such as DeviceNotRegistered"
+            }
+          ]
+        },
+        "retry": "429, 5xx, timeout, and transport failures use bounded queued backoff without duplicating an accepted ticket",
+        "terminal": "DeviceNotRegistered deactivates that exact token; other devices continue"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "POST {CHECKYBOT_LEGACY_ALERT_WEBHOOK_URL} (outbound critical proving fallback)",
+      "request": {
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "operation_id": "NotificationIntentCreated operation UUID",
+          "phase": "incident|recovery",
+          "severity": "critical",
+          "thread_key": "stable notification thread key",
+          "message": "same bounded grouped message sent to push"
+        },
+        "dispatch_rule": "While proving mode is enabled, every critical intent is sent to both Expo and the existing generic WEBHOOK adapter. Warn intents are push-only. This slice adapts to the existing webhook dispatcher and does not add a Telegram-specific channel type.",
+        "authorization": "The configured HTTPS webhook URL is a runtime secret and is fully redacted from logs."
+      },
+      "response": {
+        "success": "Any configured adapter success is recorded with operation_id and channel=legacy_webhook",
+        "failure": "Timeout, transport, or non-success result is recorded redacted and keeps retirement_ready false; Expo delivery proceeds independently"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "PHP PushReliabilityReadModel::forProject(ProjectIdentity)",
+      "request": {
+        "project_uuid": "authorized UUID",
+        "window": "fixed trailing 28 consecutive UTC days",
+        "authorization": "Internal release-gate interface; caller receives an already authorized project identity and cannot override it."
+      },
+      "response": {
+        "proving_started_at": "RFC3339 UTC datetime|null",
+        "window_ends_at": "RFC3339 UTC datetime|null",
+        "critical_intents": "non-negative integer",
+        "expo_accepted": "non-negative integer",
+        "legacy_webhook_accepted": "non-negative integer",
+        "failed_or_missing_pairs": "non-negative integer",
+        "consecutive_complete_days": "integer 0 through 28",
+        "retirement_ready": "boolean true only after 28 consecutive complete dual-send days with no missing/failed Expo or legacy receipt",
+        "last_failure_at": "RFC3339 UTC datetime|null"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "POST /__harness/alerting/results",
+      "request": {
+        "availability": "Canonical testing runtime only; absent in production and loopback-bound",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "operation_id": "UUID",
+          "identity": {
+            "project_uuid": "UUID",
+            "monitor_uuid": "UUID",
+            "type": "server|website|api"
+          },
+          "source": "pull|push",
+          "observed_at": "RFC3339 UTC datetime",
+          "signal": "success|failure for pull; healthy|warn|critical for push",
+          "reason_code": "bounded redacted string|null",
+          "value": "finite number required for push",
+          "thresholds": "push-only warn, critical, and recovery_delta object"
+        },
+        "authorization": "Harness-only loopback access; no user authentication."
+      },
+      "response": {
+        "202": {
+          "operation_id": "UUID",
+          "status": "queued"
+        },
+        "200": {
+          "operation_id": "UUID",
+          "status": "duplicate"
+        },
+        "422": {
+          "message": "string",
+          "errors": "object keyed by invalid field"
+        }
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "GET /__harness/push/receipts/{operation_id}",
+      "request": {
+        "availability": "Canonical testing runtime only; absent in production and loopback-bound",
+        "path": {
+          "operation_id": "NotificationIntentCreated operation UUID"
+        },
+        "authorization": "Harness-only loopback access; no user authentication."
+      },
+      "response": {
+        "200": {
+          "operation_id": "UUID",
+          "listener_status": "queued|processed|failed",
+          "expo_deliveries": [
+            {
+              "device_id": "UUID",
+              "status": "accepted|retrying|failed|deactivated",
+              "ticket_id": "string|null",
+              "priority": "high|default",
+              "sound": "default|null",
+              "interruption_level": "time-sensitive|passive",
+              "refresh_widget": true
+            }
+          ],
+          "legacy_webhook": "accepted|failed|not_required",
+          "reliability_recorded": "boolean",
+          "processed_at": "RFC3339 UTC datetime|null"
+        },
+        "404": {
+          "message": "Push operation not found."
+        }
+      },
+      "consumed_by": "backend"
+    }
+  ],
+  "backend_milestone_items": [
+    {
+      "milestone_key": "backend-push-delivery-runtime",
+      "title": "Registered-device push delivery and proving ledger",
+      "spec_section_id": "backend-push-delivery-runtime",
+      "ledger_path": ".full-send/canvas-runs/current/slices/push-mobile-widget-status/milestones/backend-push-delivery-runtime/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/push-mobile-widget-status/milestones/backend-push-delivery-runtime/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/push-mobile-widget-status/milestones/backend-push-delivery-runtime/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/push-mobile-widget-status/milestones/backend-push-delivery-runtime/handoff.md",
+      "contract_excerpt": "Within inherited ownership, add user/project-scoped push-device, intent-consumption, per-device delivery-attempt, provider-receipt, and daily proving-ledger persistence in the assigned migration range. Keep PushDeviceController HTTP-only and use push-domain actions/DTOs for registration and deactivation. Register the outbox NotificationIntentCreated queued listener, Expo delivery jobs/channel, retry/backoff, generic legacy-webhook adapter invocation for critical proving traffic, and testing-only loopback receipt route. Deduplicate the listener by operation_id and each provider attempt by operation_id+device_id+channel. Critical payloads are high-priority Time Sensitive with sound; warn payloads are passive/default-priority with no sound but a badge; every payload carries the shared problem filter and refreshWidget accelerator. Record both channel outcomes for critical intents while proving mode is enabled; the read model cannot report retirement_ready until 28 consecutive complete dual-send UTC days. Provider credentials, Expo tokens, webhook URLs, and provider bodies are encrypted or redacted and never appear in logs/API receipts.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-push-mobile-widget-status-1",
+          "text": "Push-device API feature tests prove an authenticated authorized user receives 201 for a new valid installation, 200 when the same user+installation rotates its Expo token, 204 when deleting its own device, and 401/403/404/422 for missing auth, cross-project/cross-user access, unknown ownership, denied permission, malformed UUID/platform/token/version input; inactive and superseded tokens are excluded from delivery."
+        },
+        {
+          "id": "AC-push-mobile-widget-status-2",
+          "text": "Queue and idempotency tests prove each notification-intent.v1 operation is claimed once, fans out once to every active device in its project, creates at most one operation_id+device_id+channel attempt under duplicate events or concurrent workers, retries only retryable Expo failures with bounded backoff, and deactivates only the token named by DeviceNotRegistered."
+        },
+        {
+          "id": "AC-push-mobile-widget-status-3",
+          "text": "Expo channel tests prove critical intents contain priority=high, sound=default, interruptionLevel=time-sensitive, badge, shared monitor-filter deep-link data, and refreshWidget=true, while warn intents contain default priority, no sound, interruptionLevel=passive, badge and the same typed data; snapshots contain no token, credential, webhook URL, or secret monitor metadata."
+        },
+        {
+          "id": "AC-push-mobile-widget-status-4",
+          "text": "Clock-controlled reliability tests prove proving-mode critical intents dispatch both Expo and the existing generic WEBHOOK adapter, warn intents dispatch push only, duplicate receipts do not inflate counts, any failed or missing pair prevents readiness, and retirement_ready becomes true only after 28 consecutive UTC days whose critical intents all have accepted Expo and legacy-webhook receipts."
+        },
+        {
+          "id": "AC-push-mobile-widget-status-5",
+          "text": "A Pest end-to-end test proves the owned alerting-to-push-delivery seam by producing a confirmed grouped NotificationIntentCreated through real POST /__harness/alerting/results requests, executing the registered outbox relay and grouping dispatcher, running the real queue worker, and observing through real GET /__harness/push/receipts/{operation_id} the Expo fake acceptance, required legacy-webhook outcome, reliability record, and refreshWidget payload, without invoking the alerting processor, push listener, job, or channel directly."
+        }
+      ]
+    }
+  ],
+  "frontend_milestone_items": [
+    {
+      "milestone_key": "frontend-expo-status-app",
+      "title": "Expo mobile status and notification loop",
+      "spec_section_id": "frontend-expo-status-app",
+      "ledger_path": ".full-send/canvas-runs/current/slices/push-mobile-widget-status/milestones/frontend-expo-status-app/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/push-mobile-widget-status/milestones/frontend-expo-status-app/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/push-mobile-widget-status/milestones/frontend-expo-status-app/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/push-mobile-widget-status/milestones/frontend-expo-status-app/handoff.md",
+      "contract_excerpt": "Within mobile ownership, create the thin Expo Router React Native app shell using generated MonitorDomainContracts and one typed client for GET /api/status-summary and push-device mutation routes. The product app must build for iOS and Android; only native widget code is platform-gated. Existing mobile-user authentication and provisioning of a status:read ProjectApiToken are external prerequisites; store credentials in platform secure storage and never AsyncStorage or logs. Register/rotate the Expo token only after granted/provisional permission and deactivate it on sign-out. Render deterministic loading, explicit all-healthy, problem, and offline states; cache the last valid summary so offline always shows last synced age rather than stale green. Notification deep links apply the supplied project/group/monitor UUID filter, while widget links apply warn/down status filters. Use shared status/severity/freshness/filter types rather than local enums.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-push-mobile-widget-status-6",
+          "text": "Locked-dependency build and type-contract tests prove the Expo product shell builds for iOS and Android and parses status summaries, severities, freshness, and monitor filters only through the generated shared contracts, rejecting an unknown state or malformed nine-count response."
+        },
+        {
+          "id": "AC-push-mobile-widget-status-7",
+          "text": "React Native component tests prove the status screen shows a progress/loading state before its first response, an explicit all-healthy message when all warn/down counts are zero, only non-healthy rows and counts in problem state, and an offline/error banner with persistent last synced Xm ago plus the cached summary after a failed refresh."
+        },
+        {
+          "id": "AC-push-mobile-widget-status-8",
+          "text": "Device lifecycle tests prove granted or provisional permission registers one installation through POST /api/v1/push-devices, token rotation updates that installation, denied permission sends no registration, sign-out calls DELETE for the owned device, and credentials and Expo tokens are held only by mocked platform secure-storage/native APIs and never rendered or logged."
+        },
+        {
+          "id": "AC-push-mobile-widget-status-9",
+          "text": "Router tests prove tapping an incident or recovery notification opens the problems route with exactly its project UUID, group UUID, and unique monitor UUID filter, tapping the widget opens the same route filtered to warn/down, malformed or foreign-project links are rejected, and Android never attempts to load the iOS widget module."
+        },
+        {
+          "id": "AC-push-mobile-widget-status-10",
+          "text": "The canonical full-runtime Playwright journey runs with the real queue worker, produces a grouped intent through the real alerting harness API, observes its push receipt through the real push receipt API, serves the Expo web build, reads an authenticated real GET /api/status-summary response, and proves the shell transitions loading-to-problem, applies the notification deep-link filter, then retains last-synced data during a forced API failure while emitting the required integration evidence."
+        }
+      ]
+    },
+    {
+      "milestone_key": "frontend-ios-status-widget",
+      "title": "iOS WidgetKit nine-number status widget",
+      "spec_section_id": "frontend-ios-status-widget",
+      "ledger_path": ".full-send/canvas-runs/current/slices/push-mobile-widget-status/milestones/frontend-ios-status-widget/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/push-mobile-widget-status/milestones/frontend-ios-status-widget/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/push-mobile-widget-status/milestones/frontend-ios-status-widget/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/push-mobile-widget-status/milestones/frontend-ios-status-widget/handoff.md",
+      "contract_excerpt": "Within mobile ownership, add one and only one iOS WidgetKit target via an Expo config plugin, with the medium 3x3 Servers/Websites/APIs by healthy/warn/down grid. Its timeline provider reads GET /api/status-summary directly on every system-scheduled reload using the status:read token from the secure App Group container; it does not depend on app launch, a server-maintained cache, or receipt of a silent push. Always show updated age. Treat updated_at=null, server stale=true, or local age greater than 900 seconds as stale and render dimming plus warning tint/label so stale data is never healthy green. Healthy, problem, stale, loading, and offline timeline entries are deterministic and testable. Taps open the shared warn/down problems deep link. The native background-notification handler records the refresh hint and calls WidgetCenter.reloadTimelines when refreshWidget=true; throttling or denied background execution leaves scheduled direct fetches authoritative and must not erase the last update age.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-push-mobile-widget-status-11",
+          "text": "Native configuration and snapshot tests prove the Expo config plugin generates exactly one iOS-only medium WidgetKit extension and no Android widget module, and its 3x3 layout has Servers, Websites, and APIs rows crossed with healthy, warn, and down columns in the declared order."
+        },
+        {
+          "id": "AC-push-mobile-widget-status-12",
+          "text": "Timeline-provider tests with an HTTP stub prove every scheduled reload performs authenticated GET /api/status-summary directly, maps all nine integer counts and updated_at without requiring app launch, returns an auth/offline entry for 401/403/transport failure, and never substitutes silent-push data for the API response."
+        },
+        {
+          "id": "AC-push-mobile-widget-status-13",
+          "text": "Clock-controlled widget component tests prove updated Xm ago is always present, data is non-stale through exactly 900 seconds, and updated_at=null, server stale=true, or local age greater than 900 seconds renders the distinct dimmed warning-tint stale label rather than the healthy treatment."
+        },
+        {
+          "id": "AC-push-mobile-widget-status-14",
+          "text": "Widget layout and link tests prove zero warn/down counts render the explicit healthy treatment, any warn/down count renders the problem treatment with the exact affected cells, loading/offline cannot appear green, and tapping any widget state opens the app problems route with warn/down filters."
+        },
+        {
+          "id": "AC-push-mobile-widget-status-15",
+          "text": "Native refresh-bridge tests prove a delivered payload with refreshWidget=true records a shared-container refresh hint and calls WidgetCenter.reloadTimelines once per operation_id, duplicate or malformed payloads do not call it again, and simulated iOS background throttling still leaves the next system timeline reload to fetch GET /api/status-summary directly while preserving visible update age."
+        }
+      ]
+    }
+  ]
+}
