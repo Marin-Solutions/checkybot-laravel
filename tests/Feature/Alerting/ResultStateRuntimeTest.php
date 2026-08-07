@@ -111,6 +111,7 @@ beforeEach(function (): void {
     DB::purge('sqlite');
     (include dirname(__DIR__, 3).'/database/migrations/2026_08_06_000000_create_monitor_foundation_tables.php')->up();
     (include dirname(__DIR__, 3).'/database/migrations/2026_08_06_010000_create_alerting_result_runtime_tables.php')->up();
+    (include dirname(__DIR__, 3).'/database/migrations/2026_08_06_010100_create_alerting_incident_group_tables.php')->up();
     Schema::create('jobs', function (Blueprint $table): void {
         $table->id();
         $table->string('queue')->index();

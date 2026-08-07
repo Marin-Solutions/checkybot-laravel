@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+STATE_DIR="${ROOT}/build/incident-grouping-runtime"
+STATE_FILE="${STATE_DIR}/stage.env"
+ACTION="${1:-}"
+
+mkdir -p "$STATE_DIR"
+
+case "$ACTION" in
+    start)
+        if [[ -f "$STATE_FILE" ]]; then
+            printf 'Refusing to overwrite active runtime state: %s\n' "$STATE_FILE" >&2
+            exit 65
+        fi
+        RUN_ID="$(php -r 'printf("%s-%s-4%s-%s%s-%s", bin2hex(random_bytes(4)), bin2hex(random_bytes(2)), substr(bin2hex(random_bytes(2)), 1), dechex(random_int(8, 11)), substr(bin2hex(random_bytes(2)), 1), bin2hex(random_bytes(6)));')"
+        PORT="$(php -r 'for ($i=0; $i<100; $i++) { $p=random_int(18000, 26000); $s=@fsockopen("127.0.0.1", $p, $e, $m, 0.05); if ($s === false) { echo $p; exit(0); } fclose($s); } exit(1);')"
+        RUN_DIR="${ROOT}/build/harness-runs/${RUN_ID}"
+        printf '[stage=runtime-start] run_id=%s port=%s\n' "$RUN_ID" "$PORT"
+        "${ROOT}/scripts/runtime/backend" start --run-dir "$RUN_DIR" --port "$PORT" | tee "${STATE_DIR}/start.log"
+        {
+            printf 'RUN_ID=%q\n' "$RUN_ID"
+            printf 'RUN_DIR=%q\n' "$RUN_DIR"
+            printf 'BACKEND_URL=%q\n' "http://127.0.0.1:${PORT}"
+        } > "$STATE_FILE"
+        ;;
+    test)
+        if [[ ! -f "$STATE_FILE" ]]; then
+            printf 'Runtime state is missing; run the start stage first.\n' >&2
+            exit 66
+        fi
+        # shellcheck disable=SC1090
+        source "$STATE_FILE"
+        export APP_ENV=harness
+        export APP_DEBUG=false
+        export APP_KEY='base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='
+        export APP_URL="$BACKEND_URL"
+        export DB_CONNECTION=sqlite
+        export DB_DATABASE="${RUN_DIR}/database.sqlite"
+        export QUEUE_CONNECTION=database
+        export CACHE_STORE=array
+        export SESSION_DRIVER=array
+        export HARNESS_RUN_ID="$RUN_ID"
+        export HARNESS_RUN_DIR="$RUN_DIR"
+        printf '[stage=playwright] backend=%s evidence=%s\n' "$BACKEND_URL" "${STATE_DIR}/evidence.json"
+        HARNESS_BACKEND_URL="$BACKEND_URL" \
+        ALERTING_GROUPING_EVIDENCE="${STATE_DIR}/evidence.json" \
+        HARNESS_PLAYWRIGHT_OUTPUT="${STATE_DIR}/playwright" \
+            npx playwright test --config "${ROOT}/tests/Feature/Alerting/playwright.config.ts" | tee "${STATE_DIR}/playwright.log"
+        ;;
+    stop)
+        if [[ ! -f "$STATE_FILE" ]]; then
+            printf '[stage=runtime-stop] no active runtime state\n'
+            exit 0
+        fi
+        # shellcheck disable=SC1090
+        source "$STATE_FILE"
+        printf '[stage=runtime-stop] run_id=%s\n' "$RUN_ID"
+        "${ROOT}/scripts/runtime/backend" stop --run-dir "$RUN_DIR" | tee "${STATE_DIR}/stop.log"
+        rm -f "$STATE_FILE"
+        ;;
+    *)
+        printf 'Usage: %s start|test|stop\n' "$0" >&2
+        exit 64
+        ;;
+esac

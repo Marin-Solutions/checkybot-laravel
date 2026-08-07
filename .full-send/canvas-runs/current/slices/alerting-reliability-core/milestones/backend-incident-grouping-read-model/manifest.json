@@ -1,0 +1,1 @@
+{"targets":["backend"],"verification":[{"target":"backend","cwd":".","commands":["./vendor/bin/pest --compact","composer analyse"]},{"target":"backend","cwd":".","commands":["tests/Feature/Alerting/runtime-stage start","tests/Feature/Alerting/runtime-stage test","tests/Feature/Alerting/runtime-stage stop"]}],"artifacts":["test_results","command_log","criteria_evidence_map"]}

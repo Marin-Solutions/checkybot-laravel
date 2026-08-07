@@ -7,6 +7,7 @@ namespace MarinSolutions\CheckybotLaravel\Domain\Alerting\Actions;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessIncidentTransition;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Models\AlertingMonitorRuntime;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Models\AlertingResult;
 use MarinSolutions\CheckybotLaravel\Domain\Alerting\Models\PullRetryRequest;
@@ -62,6 +63,8 @@ final class ProcessAcceptedMonitorResult
             $state->save();
             $this->complete($result);
         });
+
+        $this->dispatchIncidentTransitions($operationId);
     }
 
     private function processPull(AlertingResult $result, AlertingMonitorRuntime $runtime, MonitorState $state): void
@@ -217,6 +220,25 @@ final class ProcessAcceptedMonitorResult
             'status' => 'pending',
             'available_at' => now(),
         ]);
+    }
+
+    private function dispatchIncidentTransitions(string $operationId): void
+    {
+        $result = AlertingResult::query()->where('operation_id', $operationId)->first();
+        if ($result === null || $result->status !== 'processed') {
+            return;
+        }
+
+        $derivedOperationId = Uuid::uuid5(Uuid::NAMESPACE_URL, $operationId.'#transition-1')->toString();
+        $transitionIds = MonitorTransition::query()
+            ->where('project_id', $result->project_id)
+            ->whereIn('operation_id', [$operationId, $derivedOperationId])
+            ->whereIn('to_state', ['down', 'healthy'])
+            ->pluck('public_id');
+
+        foreach ($transitionIds as $transitionId) {
+            ProcessIncidentTransition::dispatch((string) $transitionId);
+        }
     }
 
     private function cancelPendingRetries(AlertingResult $result): void

@@ -16,12 +16,17 @@ use MarinSolutions\CheckybotLaravel\Models\Concerns\HasPublicUuid;
 /**
  * @property string $public_id
  * @property string $operation_id
+ * @property string $project_id
+ * @property string $monitor_id
+ * @property MonitorType $monitor_type
  * @property LifecycleState $from_state
  * @property LifecycleState $to_state
  * @property Severity $severity
  * @property CarbonImmutable $occurred_at
  * @property CarbonImmutable|null $entered_at
  * @property string|null $reason_code
+ * @property string|null $incident_group_id
+ * @property bool $maintenance_suppressed
  */
 final class MonitorTransition extends Model
 {
@@ -49,6 +54,7 @@ final class MonitorTransition extends Model
             'monitor_filter' => 'array',
             'occurred_at' => 'immutable_datetime',
             'entered_at' => 'immutable_datetime',
+            'maintenance_suppressed' => 'boolean',
         ];
     }
 
