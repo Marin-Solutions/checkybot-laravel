@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 return [
+    'expanded_checks' => [
+        'domain_lookup_timeout_seconds' => (float) env('CHECKYBOT_DOMAIN_LOOKUP_TIMEOUT', 5),
+    ],
     'push' => [
         'proving_enabled' => env('CHECKYBOT_PUSH_PROVING_ENABLED', true),
         'expo' => [

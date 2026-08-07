@@ -1,0 +1,55 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Carbon\CarbonImmutable;
+use Illuminate\Contracts\Console\Kernel;
+use Illuminate\Foundation\Application;
+use MarinSolutions\CheckybotLaravel\Domain\ExpandedChecks\Contracts\DomainExpiryLookup;
+use MarinSolutions\CheckybotLaravel\Tests\Feature\ExpandedChecks\Support\FileSequenceDomainExpiryLookup;
+use Symfony\Component\Console\Input\ArgvInput;
+
+$root = dirname(__DIR__, 4);
+require $root.'/vendor/autoload.php';
+
+$testNow = (string) getenv('EXPANDED_TEST_NOW');
+if ($testNow !== '') {
+    CarbonImmutable::setTestNow(CarbonImmutable::parse($testNow)->utc());
+}
+
+define('LARAVEL_START', microtime(true));
+/** @var Application $app */
+$app = require $root.'/scripts/harness/bootstrap/app.php';
+$app->make(Kernel::class)->bootstrap();
+
+$database = realpath((string) getenv('DB_DATABASE'));
+if ($database === false || ! str_starts_with($database, $root.DIRECTORY_SEPARATOR)) {
+    fwrite(STDERR, "Refusing a queue database outside the workspace.\n");
+    exit(65);
+}
+
+$lookupState = (string) getenv('EXPANDED_LOOKUP_STATE');
+if ($lookupState !== '') {
+    $app->bind(
+        DomainExpiryLookup::class,
+        static fn (): DomainExpiryLookup => new FileSequenceDomainExpiryLookup($lookupState),
+    );
+}
+
+$barrier = (string) getenv('EXPANDED_WORKER_BARRIER');
+$ready = (string) getenv('EXPANDED_WORKER_READY');
+if ($barrier !== '' && $ready !== '') {
+    touch($ready);
+    $deadline = microtime(true) + 15;
+    while (! is_file($barrier) && microtime(true) < $deadline) {
+        usleep(20_000);
+        clearstatcache(true, $barrier);
+    }
+    if (! is_file($barrier)) {
+        fwrite(STDERR, "Queue worker barrier timeout.\n");
+        exit(70);
+    }
+}
+
+exit($app->handleCommand(new ArgvInput));
