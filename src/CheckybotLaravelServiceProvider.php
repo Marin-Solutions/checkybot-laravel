@@ -70,6 +70,8 @@ class CheckybotLaravelServiceProvider extends PackageServiceProvider
      */
     protected function loadCheckybotRoutes(): void
     {
+        require __DIR__.'/../routes/agent.php';
+
         $routesPath = base_path('routes/checkybot.php');
 
         if (file_exists($routesPath)) {

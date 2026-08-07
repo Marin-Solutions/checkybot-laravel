@@ -1,0 +1,273 @@
+{
+  "slice_key": "agent-v2-expanded-monitors",
+  "base_requirements": [
+    "Canvas slice mandate: deliver versioned stateful agent v2 reports, persisted network deltas, log prerequisites, PHP-FPM and nginx evaluation, a server-side dead-man, configurable link caps, fleet rollout documentation, domain expiry, and p95 response-time budgets",
+    "PRD 4.1: every agent payload carries its schema and agent version, the collector persists rx/tx counter state safely between one-minute runs, and operators explicitly provision access to adm/root-owned nginx, PHP-FPM, and optional MySQL logs",
+    "PRD 4.1: network warns at 70% and is critical at 90% of a per-server link cap defaulting to 1 Gbit/s; PHP-FPM warns at 80% active workers and produces a critical candidate when max_children was reached in the preceding five minutes",
+    "PRD 4.1: nginx evaluates a five-minute 5xx rate only with at least 50 requests, warns above 1%, is critical above 5%, uses a critical absolute fallback at 10 failures below 50 requests, recognizes upstream timeouts, and surfaces unavailable access logs as misconfigured rather than 0% healthy",
+    "PRD 4.1 and 11: a server-side dead-man evaluates the one-minute reporting heartbeat, with no warning before three missed intervals and no critical candidate before five missed intervals",
+    "PRD 4.2 and rollout phase 3: domain expiry is looked up by a real WHOIS/RDAP adapter and warns with 30 days remaining; response-time budget evaluation computes p95 over stored per-check speed samples and warns above 2 seconds",
+    "PRD 4.1 v1.5 boundary: static rules alone create monitor results; RedactedLogSnippetProvider supplies only bounded, already-filtered nginx, FPM, or MySQL context and never creates an alert",
+    "Inherited MonitorDomainContracts and MonitorResultIngestionInterface: use foundation project/monitor identities, canonical healthy|warn|down|recovering lifecycle and warn|critical severity, persist agent-owned ready|misconfigured prerequisite status without inventing another lifecycle state, and submit one aggregate normalized result per monitor observation",
+    "Canvas owned seam and integration requirement: agent evaluator commands, schedules, queue jobs, and bindings are registered and proven through real agent HTTP ingestion, the real queue worker and outbox relay, and real receipt HTTP reads in the canonical full-runtime Playwright harness"
+  ],
+  "ownership": {
+    "files": [
+      "agent",
+      "app/Domain/Agent",
+      "app/Domain/ExpandedChecks",
+      "app/Http/Controllers/AgentReportController.php",
+      "app/Jobs/Agent",
+      "app/Jobs/ExpandedChecks",
+      "database/migrations/2026_08_06_030000-2026_08_06_039999",
+      "docs/agent-v2-rollout.md",
+      "routes/agent.php",
+      "tests/Feature/AgentV2",
+      "tests/Feature/ExpandedChecks",
+      "tests/Unit/AgentV2"
+    ],
+    "migration_timestamp_range": "2026_08_06_030000-2026_08_06_039999"
+  },
+  "api_contract": [
+    {
+      "route": "POST /api/v2/agent-reports",
+      "request": {
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer <active foundation ProjectApiToken with agent:report>"
+        },
+        "body": {
+          "schema_version": "literal agent-report.v2",
+          "operation_id": "UUID used for immutable idempotency",
+          "agent_version": "semantic version string",
+          "server_uuid": "UUID of a registered server in the token project",
+          "observed_at": "RFC3339 UTC datetime",
+          "reporting_interval_seconds": "integer; v2 fleet default and supported value is 60",
+          "cpu": {
+            "five_min_percent": "finite number from 0 through 100"
+          },
+          "memory": {
+            "used_percent": "finite number from 0 through 100"
+          },
+          "disks": "array of {mount, used_percent, predicted_days_to_full|null}",
+          "network_interfaces": "array of {name, rx_bytes_total, tx_bytes_total, rx_delta_bytes|null, tx_delta_bytes|null, elapsed_seconds|null, sample_status: baseline|ready|reset}",
+          "php_fpm_pools": "array of {pool, active_workers, max_children, max_children_reached_5m}",
+          "nginx_window": "{window_seconds: 300, total_requests, five_xx_count, upstream_timeout_count}",
+          "prerequisites": "array of {kind: nginx_access_log|nginx_error_log|php_fpm_status|php_fpm_log|mysql_log, path_hint, status: readable|missing|permission_denied|disabled|not_configured}",
+          "relevant_log_lines": "optional bounded array of {source: nginx|fpm|mysql, observed_at, line}; query values, credentials, and PII must already be redacted"
+        },
+        "validation": "Unknown fields, wrong schema version, future/stale timestamps outside configured skew, duplicate interface names, negative counters/deltas, invalid percentages, inconsistent ready deltas, windows other than 300 seconds, unbounded lines, and unredacted secret patterns return 422. The same operation_id and canonical body is idempotent; reuse with different content returns 409.",
+        "authorization": "The active token must possess agent:report. Project identity is derived only from the token, and server_uuid must be an enabled server registration in that project; cross-project reports return 403."
+      },
+      "response": {
+        "202": {
+          "data": {
+            "operation_id": "UUID",
+            "status": "queued",
+            "server_uuid": "UUID",
+            "evaluation_operation_ids": "array of deterministic UUIDs submitted or scheduled for MonitorResultIngestionInterface"
+          }
+        },
+        "200": "The same data shape with status duplicate for an identical replay",
+        "401": {
+          "message": "Unauthenticated."
+        },
+        "403": {
+          "message": "The token cannot report for this server."
+        },
+        "409": {
+          "message": "The operation_id is already bound to a different immutable report."
+        },
+        "422": {
+          "message": "string",
+          "errors": "object keyed by invalid field"
+        }
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "PHP MonitorResultIngestionInterface::ingest(NormalizedMonitorResult)",
+      "request": {
+        "operation_id": "deterministic UUID unique to monitor and observation",
+        "identity": "foundation project_uuid, monitor_uuid, and server|website type",
+        "source": "push for aggregate metric bands; pull for a real domain lookup transport result",
+        "observed_at": "RFC3339 UTC datetime",
+        "signal": "healthy|warn|critical for push or success|failure for pull",
+        "reason_code": "bounded non-secret dominant rule or prerequisite code",
+        "value": "push-only finite normalized aggregate band value",
+        "thresholds": "push-only ordered warn, critical, and recovery_delta values",
+        "mapping": "Each server report produces one worst-band aggregate result for its single server identity so healthy sibling metrics cannot overwrite a breach. Domain-expiry and response-budget checks use their own website monitor identities. Detailed raw values remain in this slice and never enter reason_code."
+      },
+      "response": {
+        "accepted": "boolean",
+        "operation_id": "UUID",
+        "status": "queued|duplicate",
+        "next_retry_at": "RFC3339 UTC datetime|null for real pull retries"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "PHP DomainExpiryLookup::lookup(DomainName)",
+      "request": {
+        "domain": "validated canonical ASCII/IDNA domain without scheme, path, credentials, or port",
+        "transport": "injectable real WHOIS/RDAP adapter with bounded timeout, redacted diagnostics, and deterministic test fake",
+        "cache_policy": "Successful authoritative lookup is stored until its next daily refresh; a failed refresh never overwrites a prior expiry with a healthy value."
+      },
+      "response": {
+        "success": "{domain, expires_at: RFC3339 UTC datetime, source: whois|rdap, fetched_at: RFC3339 UTC datetime}",
+        "failure": "typed retryable|terminal lookup failure with a bounded redacted reason and no fabricated expiry"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "PHP RedactedLogSnippetProvider::forIncident(AuthorizedLogSnippetRequest)",
+      "request": {
+        "identity": "authorized foundation project/server MonitorIdentity",
+        "incident_window": "RFC3339 UTC from/to timestamps",
+        "sources": "non-empty subset of nginx|fpm|mysql",
+        "limit": "integer from 1 through 200",
+        "authorization": "Caller is project-authorized and the server's share_redacted_logs setting is explicitly enabled; the default is disabled."
+      },
+      "response": {
+        "lines": "ordered array of {source, observed_at, redacted_line} containing only statically relevant context",
+        "truncated": "boolean",
+        "redaction_version": "string",
+        "alert_eligible": false,
+        "denied": "disabled, unauthorized, cross-project, or out-of-window requests return no lines"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "GET /__harness/alerting/receipts/{operation_id}",
+      "request": {
+        "availability": "Canonical testing runtime only; absent in production and loopback-bound",
+        "path": {
+          "operation_id": "an evaluation UUID returned by POST /api/v2/agent-reports or deterministically created by an expanded-check evaluator"
+        },
+        "authorization": "Harness-only loopback access"
+      },
+      "response": {
+        "200": "Alerting receipt containing processed status, canonical current_state, transitions, retries, and consumer receipts for the submitted normalized result",
+        "404": {
+          "message": "Alerting operation not found."
+        }
+      },
+      "consumed_by": "backend"
+    }
+  ],
+  "backend_milestone_items": [
+    {
+      "milestone_key": "backend-agent-v2-report-runtime",
+      "title": "Stateful agent v2 collection and report ingestion",
+      "spec_section_id": "backend-agent-v2-report-runtime",
+      "ledger_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/milestones/backend-agent-v2-report-runtime/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/milestones/backend-agent-v2-report-runtime/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/milestones/backend-agent-v2-report-runtime/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/milestones/backend-agent-v2-report-runtime/handoff.md",
+      "contract_excerpt": "Within inherited ownership, rewrite the collector under agent as an agent-report.v2 producer with semantic agent version, one-minute cadence, an atomically replaced and locked mode-0600 state file, rx/tx totals and deltas, reset/hot-plug detection, static nginx/FPM/MySQL filtering, local redaction, and explicit prerequisite status. Add thin AgentReportController and routes/agent.php token middleware; immutable DTO validation/actions; project/server settings with 1 Gbit/s default link cap and share_redacted_logs disabled; report, raw sample, prerequisite, and redacted-line persistence in the assigned migration range; and a queued EvaluateAgentReport job. Project comes from the foundation token and a report is stored atomically before job dispatch. Baseline/reset network observations are unavailable, never zero-health samples.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-agent-v2-expanded-monitors-1",
+          "text": "Fixture-driven agent tests run the collector across baseline, second-run, interface hot-plug, counter-reset, and interrupted-write cases and prove agent-report.v2 plus semantic agent_version is emitted, ready samples equal non-negative counter deltas divided by real elapsed time, baseline/reset samples are unavailable rather than zero, and the locked state file remains valid with mode 0600 after atomic replacement."
+        },
+        {
+          "id": "AC-agent-v2-expanded-monitors-2",
+          "text": "POST /api/v2/agent-reports feature tests prove missing/invalid tokens return 401, missing agent:report or cross-project/unknown server access returns 403, malformed or unknown-version payloads return 422, a valid request returns 202 and atomically persists one report plus samples before queueing one evaluator job, an identical replay returns 200 without duplicate rows/jobs, and an operation-id collision returns 409."
+        },
+        {
+          "id": "AC-agent-v2-expanded-monitors-3",
+          "text": "Parser and persistence tests prove PHP-FPM pool counts, five-minute max_children counts, nginx five-minute request/5xx/timeout counts, and readable|missing|permission_denied|disabled|not_configured prerequisites survive the v2 payload unchanged, while query values, Authorization/Cookie values, configured secrets, emails, and IP addresses never appear in persisted relevant_log_lines or diagnostics."
+        },
+        {
+          "id": "AC-agent-v2-expanded-monitors-4",
+          "text": "Settings tests prove every registered server receives a 1,000,000,000 bit/s link cap and share_redacted_logs=false by default, a positive per-server cap override is project-isolated and used by the next queued evaluation, and zero, negative, or cross-project overrides are rejected."
+        }
+      ]
+    },
+    {
+      "milestone_key": "backend-agent-monitor-evaluators",
+      "title": "Server metric, log, prerequisite, and dead-man evaluators",
+      "spec_section_id": "backend-agent-monitor-evaluators",
+      "ledger_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/milestones/backend-agent-monitor-evaluators/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/milestones/backend-agent-monitor-evaluators/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/milestones/backend-agent-monitor-evaluators/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/milestones/backend-agent-monitor-evaluators/handoff.md",
+      "contract_excerpt": "Register the agent module's EvaluateAgentReport job, due-evaluator command, real queue bindings, and overlap-safe server dead-man schedule. For each observation, evaluate CPU five-minute average (85/95), RAM (85/95), disk (80/90 plus the existing seven-day predictive critical rule), network max(rx,tx) bits/s against 70/90% of the current server cap, FPM active/max at 80/100 and max_children_reached_5m as critical, nginx static rules, and prerequisites. Persist details but submit one deterministic worst-band NormalizedMonitorResult for the server identity through MonitorResultIngestionInterface. Access-log unavailable is ready|misconfigured with a warn candidate and no fabricated zero rate. An upstream timeout is a critical candidate and is also counted in correlated 5xx totals. Dead-man scans use last accepted observed_at and 60-second reporting intervals: candidate state is healthy before 180 seconds, warn from 180 through 299, and critical from 300; repeated due scans flow through alerting confirmation/hysteresis and cannot duplicate an operation. A fresh accepted report clears local liveness and supplies subsequent healthy aggregate samples.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-agent-v2-expanded-monitors-5",
+          "text": "Table-driven evaluator tests prove CPU 85/95, RAM 85/95, disk 80/90 and seven-day predictive-full, and network 70/90 percent boundaries using max(rx,tx) and the persisted per-server cap; baseline/reset network data is excluded, and each report submits exactly one deterministic worst-severity normalized server result so a healthy sibling metric cannot mask a breach."
+        },
+        {
+          "id": "AC-agent-v2-expanded-monitors-6",
+          "text": "PHP-FPM tests prove active/max utilization below 80% is healthy, 80% is warn, 100% is critical, and any max_children_reached_5m value above zero is a critical candidate with a bounded reason code, while absent or unreadable configured FPM sources persist misconfigured and never report an invented zero-worker healthy sample."
+        },
+        {
+          "id": "AC-agent-v2-expanded-monitors-7",
+          "text": "Nginx tests prove a five-minute window with at least 50 requests is healthy through exactly 1% 5xx, warns above 1%, and is critical above 5%; below 50 requests only 10 or more 5xx is critical; one or more upstream timeouts is a critical candidate; and missing, disabled, or permission-denied configured access logs persist misconfigured, emit a prerequisite warning candidate, and never evaluate as 0% healthy."
+        },
+        {
+          "id": "AC-agent-v2-expanded-monitors-8",
+          "text": "Clock-controlled dead-man feature tests prove no warn candidate is submitted before 180 seconds since the last accepted report, warn candidates are submitted from 180 seconds, no critical candidate is submitted before 300 seconds, critical candidates are submitted from 300 seconds, duplicate scheduler scans reuse no operation ID, and a newly accepted report resets elapsed liveness without accepting an out-of-order timestamp."
+        },
+        {
+          "id": "AC-agent-v2-expanded-monitors-9",
+          "text": "The canonical full-runtime Playwright end-to-end test proves the owned agent-evaluators-to-alerting seam by posting three authenticated high-network reports through POST /api/v2/agent-reports, executing the registered evaluator command and foundation outbox relay with the real queue worker running, and observing through GET /__harness/alerting/receipts/{operation_id} that the normalized result was processed and the server reached the confirmed canonical state, without invoking an evaluator, ingestion action, processor, or consumer directly."
+        }
+      ]
+    },
+    {
+      "milestone_key": "backend-expanded-website-evaluators",
+      "title": "Domain-expiry and p95 response-budget evaluators",
+      "spec_section_id": "backend-expanded-website-evaluators",
+      "ledger_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/milestones/backend-expanded-website-evaluators/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/milestones/backend-expanded-website-evaluators/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/milestones/backend-expanded-website-evaluators/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/milestones/backend-expanded-website-evaluators/handoff.md",
+      "contract_excerpt": "Within app/Domain/ExpandedChecks and app/Jobs/ExpandedChecks, add normalized domain names, injectable WHOIS/RDAP lookup, persisted authoritative expiry observations, stored-check-speed read adapters, nearest-rank p95 evaluation, deterministic operation IDs, queue jobs, real pull-recheck binding, and overlap-safe schedules. Refresh domain expiry daily; a transport failure submits a pull failure so alerting's +10/+30 retries execute the real lookup and never fabricate a date. Every minute, evaluate a non-stale stored expiry: more than 30 whole days is healthy, 0-30 is warn, and already expired is critical. Every minute, compute nearest-rank p95 over the source read model's bounded retained successful speeds; no samples yields unavailable/misconfigured and no healthy result, exactly 2000 ms is healthy, and above 2000 ms is warn-only. Both evaluators submit through MonitorResultIngestionInterface under their own website monitor identities.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-agent-v2-expanded-monitors-10",
+          "text": "Domain lookup feature tests prove Unicode and mixed-case host input is canonicalized to one ASCII domain, a successful real-adapter result persists its authoritative expiry and source, and timeout, malformed, or no-expiry responses retain the prior observation, submit a redacted pull failure, and cause the alerting retry producer to perform real lookups at +10 and +30 seconds rather than replaying the failed payload."
+        },
+        {
+          "id": "AC-agent-v2-expanded-monitors-11",
+          "text": "Clock-controlled domain-expiry tests prove the minute evaluator is healthy above 30 whole days remaining, produces warn candidates from exactly 30 days through expiry, produces critical candidates only after expiry, rejects stale or absent lookup data without reporting healthy, and submits one deterministic operation per monitor/observation under the authenticated project identity."
+        },
+        {
+          "id": "AC-agent-v2-expanded-monitors-12",
+          "text": "Response-budget tests prove nearest-rank p95 is computed from only the target check's retained successful finite speed values in observation order, exactly 2000 ms is healthy, 2001 ms is warn, a single extreme tail value affects the expected nearest-rank percentile, and empty, non-finite, failed, stale, or cross-project samples cannot produce a healthy result."
+        },
+        {
+          "id": "AC-agent-v2-expanded-monitors-13",
+          "text": "Queue and scheduler feature tests prove daily domain refresh plus one-minute domain-budget evaluation and one-minute p95 evaluation are overlap-safe, duplicate jobs submit no duplicate ingestion operation, disabled checks submit nothing, and every accepted result uses MonitorResultIngestionInterface rather than directly mutating MonitorState or MonitorTransition."
+        }
+      ]
+    },
+    {
+      "milestone_key": "backend-redacted-log-rollout",
+      "title": "Redacted log snippet boundary and fleet rollout guide",
+      "spec_section_id": "backend-redacted-log-rollout",
+      "ledger_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/milestones/backend-redacted-log-rollout/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/milestones/backend-redacted-log-rollout/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/milestones/backend-redacted-log-rollout/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/milestones/backend-redacted-log-rollout/handoff.md",
+      "contract_excerpt": "Provide the agent-owned RedactedLogSnippetProvider implementation over already-filtered persisted nginx/FPM/MySQL context. Enforce foundation MonitorIdentity project authorization, explicit share_redacted_logs opt-in, incident-window bounds, source allow-list, limit 1-200, deterministic ordering, and foundation recursive redaction again at read time. Return alert_eligible=false and perform no state, transition, incident, outbox, or notification write. Complete docs/agent-v2-rollout.md with prerequisites for enabled access logs, adm membership or least-privilege sudo, FPM status/log access, optional MySQL context, state-directory ownership, per-server cap configuration, token provisioning/rotation, inventory, canary, fleet version verification, rollback, and misconfiguration troubleshooting.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-agent-v2-expanded-monitors-14",
+          "text": "RedactedLogSnippetProvider contract tests prove default-disabled, unauthorized, cross-project, unsupported-source, and out-of-window requests return no lines; an authorized opted-in request returns at most the requested limit in timestamp order and a second redaction pass removes query values, credentials, cookies, configured secrets, emails, and IP addresses."
+        },
+        {
+          "id": "AC-agent-v2-expanded-monitors-15",
+          "text": "Provider side-effect tests prove successful and denied snippet requests leave MonitorState, MonitorTransition, incident, outbox, and notification-intent counts unchanged and always return alert_eligible=false, so the provider can annotate only and cannot create alerts."
+        },
+        {
+          "id": "AC-agent-v2-expanded-monitors-16",
+          "text": "A documentation contract test proves docs/agent-v2-rollout.md contains executable preflight and verification steps for access-log enablement, adm or least-privilege sudo permissions, FPM and optional MySQL reads, mode-0600 state storage, 1 Gbit/s default and cap override, scoped token rotation, canary rollout, fleet agent-version inventory, rollback, and remediation of every declared prerequisite status."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "captured_at": 1786104062.5,
+  "cpu_five_min_percent": 22.5,
+  "memory_used_percent": 45.2,
+  "disks": [{"mount": "/", "used_percent": 52.2, "predicted_days_to_full": 120.0}],
+  "network": {"eth0": {"rx": 1125000, "tx": 2062500}},
+  "php_fpm_pools": [{"pool": "www", "active_workers": 4, "max_children": 20, "max_children_reached_5m": 0}],
+  "nginx_window": {"total_requests": 60, "five_xx_count": 1, "upstream_timeout_count": 0},
+  "prerequisites": [{"kind": "nginx_access_log", "path_hint": "/var/log/nginx/access.log", "status": "readable"}],
+  "relevant_log_lines": []
+}

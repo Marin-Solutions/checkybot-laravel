@@ -1,0 +1,37 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use Checkybot\AgentV2\AgentV2Collector;
+use Checkybot\AgentV2\AtomicStateStore;
+use Checkybot\AgentV2\LocalRedactor;
+use Checkybot\AgentV2\SystemProbe;
+
+require __DIR__.'/src/AgentV2Collector.php';
+
+$options = getopt('', ['fixture:', 'state:', 'server:', 'operation:', 'secret::']);
+foreach (['fixture', 'state', 'server', 'operation'] as $required) {
+    if (! isset($options[$required]) || ! is_string($options[$required]) || $options[$required] === '') {
+        fwrite(STDERR, "Usage: checkybot-agent --fixture=<snapshot.json> --state=<state.json> --server=<uuid> --operation=<uuid> [--secret=<literal>]\n");
+        exit(64);
+    }
+}
+
+$probe = new class($options['fixture']) implements SystemProbe
+{
+    public function __construct(private readonly string $path) {}
+
+    public function snapshot(): array
+    {
+        $payload = json_decode((string) file_get_contents($this->path), true, 32, JSON_THROW_ON_ERROR);
+        if (! is_array($payload)) {
+            throw new RuntimeException('Fixture snapshot must be an object.');
+        }
+
+        return $payload;
+    }
+};
+$secrets = isset($options['secret']) ? (array) $options['secret'] : [];
+$collector = new AgentV2Collector($probe, new AtomicStateStore($options['state']), new LocalRedactor($secrets));
+echo json_encode($collector->collect($options['server'], $options['operation']), JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)."\n";
