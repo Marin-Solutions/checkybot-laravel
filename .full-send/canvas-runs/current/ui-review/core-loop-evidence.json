@@ -1,0 +1,66 @@
+{
+  "result": "PASS",
+  "run_id": "7594fd0a-72a5-4e84-87dd-49fc283b24b1",
+  "backend_url": "http://127.0.0.1:36003",
+  "frontend_url": "http://127.0.0.1:38943",
+  "database": "/home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/build/harness-runs/7594fd0a-72a5-4e84-87dd-49fc283b24b1/database.sqlite",
+  "queue_worker_active": true,
+  "worker_log": "build/harness-runs/7594fd0a-72a5-4e84-87dd-49fc283b24b1/worker.log",
+  "steps": [
+    {
+      "step": "Open the production-shaped Expo web status surface; loading state is visible before the authenticated status fetch completes.",
+      "result": "PASS",
+      "screenshot": ".full-send/canvas-runs/current/ui-review/01-status-loading.png"
+    },
+    {
+      "step": "Initial authenticated /api/status-summary renders an explicit all-healthy empty state.",
+      "result": "PASS",
+      "screenshot": ".full-send/canvas-runs/current/ui-review/02-status-all-healthy.png"
+    },
+    {
+      "step": "A sub-30-second deploy blip crosses real HTTP and queue processing but produces zero notification intents and the UI remains healthy.",
+      "result": "PASS",
+      "post_statuses": [
+        202,
+        202
+      ],
+      "push_statuses": [
+        404,
+        404
+      ],
+      "relay": "Relayed 2 foundation event(s).",
+      "screenshot": ".full-send/canvas-runs/current/ui-review/03-deploy-blip-still-healthy.png"
+    },
+    {
+      "step": "Three consecutive critical pushed samples for two servers create one grouped incident, one accepted Expo push, one legacy webhook failover, and a refreshed problem state.",
+      "result": "PASS",
+      "intent_operation_id": "f63019b2-9284-5367-83df-97cb14aada18",
+      "monitor_uuids": [
+        "66f30878-db21-40e2-95e6-969e4dc1d1cb",
+        "ebb1c642-b6d6-4e78-baa2-179789c35edb"
+      ],
+      "relay": "Relayed 5 foundation event(s).",
+      "expo_status": "accepted",
+      "legacy_webhook": "accepted",
+      "screenshot": ".full-send/canvas-runs/current/ui-review/04-problems-need-attention.png"
+    },
+    {
+      "step": "Tapping/opening the latest grouped notification lands on the filtered problems screen with project, group, and monitor filters visible.",
+      "result": "PASS",
+      "screenshot": ".full-send/canvas-runs/current/ui-review/05-filtered-problems-deep-link.png"
+    },
+    {
+      "step": "When the surfaced status API fails over real HTTP, the app shows an offline banner, preserved cached problem counts, and last-synced age.",
+      "result": "PASS",
+      "screenshot": ".full-send/canvas-runs/current/ui-review/06-offline-cached-problems.png"
+    }
+  ],
+  "screenshots": [
+    ".full-send/canvas-runs/current/ui-review/01-status-loading.png",
+    ".full-send/canvas-runs/current/ui-review/02-status-all-healthy.png",
+    ".full-send/canvas-runs/current/ui-review/03-deploy-blip-still-healthy.png",
+    ".full-send/canvas-runs/current/ui-review/04-problems-need-attention.png",
+    ".full-send/canvas-runs/current/ui-review/05-filtered-problems-deep-link.png",
+    ".full-send/canvas-runs/current/ui-review/06-offline-cached-problems.png"
+  ]
+}
