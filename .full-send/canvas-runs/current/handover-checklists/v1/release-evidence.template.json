@@ -1,0 +1,38 @@
+{
+  "contract_version": "release-evidence.v1",
+  "run_id": "<run-uuid>",
+  "commit": "<git-commit>",
+  "responsible_owner": "<release-owner>",
+  "started_at": "<RFC3339-UTC>",
+  "completed_at": "<RFC3339-UTC>",
+  "expires_at": "<RFC3339-UTC; no more than 24 hours later>",
+  "commands": [
+    "./vendor/bin/pest tests/Feature/ReleaseHardening --compact"
+  ],
+  "thresholds": {
+    "sub_30_second_notification_intents": 0,
+    "sub_30_second_deliveries": 0,
+    "grouped_incident_intents": 1,
+    "grouped_recovery_intents": 1,
+    "maximum_watchdog_age_seconds": 300,
+    "required_complete_proving_days": 28,
+    "fleet_reporting_interval_seconds": 60,
+    "secret_scan_matches": 0
+  },
+  "evidence_paths": {
+    "pest": "evidence/<run-id>/release-gate-pest.txt",
+    "watchdog": "evidence/<run-id>/watchdog.json",
+    "push_reliability": "evidence/<run-id>/push-reliability.json",
+    "fleet": "evidence/<run-id>/fleet-readiness.json",
+    "secret_scan": "evidence/<run-id>/secret-scan.txt"
+  },
+  "rollback_triggers": [
+    "unexpected or duplicate notification",
+    "failed or missing critical delivery pair",
+    "stale or failed external watchdog",
+    "fleet heartbeat or prerequisite drift",
+    "secret scan match"
+  ],
+  "rollback_owner": "<rollback-owner>",
+  "signed_at": "<RFC3339-UTC>"
+}

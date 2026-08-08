@@ -1,0 +1,59 @@
+{
+  "contract_version": "fleet-readiness.v1",
+  "project_uuid": "<project-uuid>",
+  "expected_agent_version": "<semantic-version>",
+  "enabled_server_inventory_evidence_path": "evidence/<run-id>/enabled-servers.json",
+  "responsible_owner": "<fleet-rollout-owner>",
+  "recorded_at": "<RFC3339-UTC>",
+  "expires_at": "<RFC3339-UTC; no more than 24 hours later>",
+  "rollout_order": ["variant-canary", "5%", "25%", "50%", "100%"],
+  "servers": [
+    {
+      "server_uuid": "<server-uuid>",
+      "latest_report": {
+        "accepted": false,
+        "schema_version": "agent-report.v2",
+        "reporting_interval_seconds": 60,
+        "agent_version": "<semantic-version>",
+        "accepted_at": "<RFC3339-UTC; no older than 120 seconds>",
+        "evidence_path": "evidence/<run-id>/servers/<server-uuid>/accepted-report.json",
+        "prerequisites": {
+          "nginx_access": "<readable|required failure status>",
+          "nginx_error": "<readable|required failure status>",
+          "php_fpm": "<readable|required failure status>",
+          "mysql": "<readable|not_configured>"
+        }
+      },
+      "optional_mysql_exception": {
+        "approved": false,
+        "approved_by": "<database-owner>",
+        "approved_at": "<RFC3339-UTC>",
+        "reason": "<why MySQL context is not applicable>"
+      },
+      "link_cap": {
+        "confirmed": false,
+        "bits_per_second": 1000000000,
+        "evidence_path": "evidence/<run-id>/servers/<server-uuid>/link-cap.json"
+      },
+      "canary_wave": {
+        "name": "<variant-canary|5%|25%|50%|100%>",
+        "result": "<passed|failed>",
+        "completed_at": "<RFC3339-UTC>",
+        "evidence_path": "evidence/<run-id>/servers/<server-uuid>/canary.json"
+      },
+      "scoped_token_rotation": {
+        "abilities": ["agent:report"],
+        "new_token_report_accepted": false,
+        "old_token_revoked": false,
+        "rotated_at": "<RFC3339-UTC>",
+        "evidence_path": "evidence/<run-id>/servers/<server-uuid>/token-rotation.json"
+      },
+      "rollback": {
+        "owner": "<fleet-operator>",
+        "triggers": ["rejected report", "missing heartbeat", "prerequisite drift", "redaction failure"],
+        "post_rollback_heartbeat_procedure": "Confirm a fresh accepted agent-report.v2 within 120 seconds after restoring the pinned binary and scoped token.",
+        "evidence_path": "evidence/<run-id>/servers/<server-uuid>/post-rollback-heartbeat.json"
+      }
+    }
+  ]
+}
