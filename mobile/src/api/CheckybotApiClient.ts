@@ -30,6 +30,14 @@ export interface CheckybotClient {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/** A 401/403 from the status API. Surfaces distinctly so it is never mistaken for being offline. */
+export class StatusAuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StatusAuthError';
+  }
+}
+
 export class CheckybotApiClient implements CheckybotClient {
   private readonly request: typeof fetch;
 
@@ -46,6 +54,10 @@ export class CheckybotApiClient implements CheckybotClient {
     const response = await this.request(`${this.baseUrl}/api/status-summary`, {
       headers: { Accept: 'application/json', Authorization: `Bearer ${token}` },
     });
+    // Checked before reading the body: a rejected request need not carry a JSON payload.
+    if (response.status === 401 || response.status === 403) {
+      throw new StatusAuthError('Your session has expired. Sign in again to see live status.');
+    }
     const body: unknown = await response.json();
     if (!response.ok) throw new Error('Unable to refresh status.');
     return parseStatusSummaryResponse(body).data;

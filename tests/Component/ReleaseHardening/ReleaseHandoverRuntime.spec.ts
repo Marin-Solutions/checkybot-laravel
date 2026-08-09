@@ -59,9 +59,12 @@ test('canonical release handover journey proves alerting, push, status refresh, 
   await context.tracing.start({ screenshots: true, snapshots: true, sources: true });
   try {
     await page.goto(runtime.frontend_url);
-    await expect(page.getByTestId('all-healthy')).toContainText('No warnings or outages right now.');
+    // A freshly seeded project has no monitors and no updated_at, so the surface must say so
+    // rather than claim an all-clear it cannot support (docs/release-hardening.md freshness gate).
+    await expect(page.getByTestId('empty-project')).toContainText('No monitors have been added');
+    await expect(page.getByTestId('all-healthy')).toHaveCount(0);
     await expect(page.getByTestId('last-synced')).toContainText('Last synced unknown');
-    stages.push('built production StatusScreen loaded explicit healthy/empty state from authenticated real HTTP');
+    stages.push('built production StatusScreen loaded the explicit empty state, never a stale all-clear, from authenticated real HTTP');
 
     const blipMonitor = crypto.randomUUID();
     const blipStarted = new Date(Date.now() - 25_000);

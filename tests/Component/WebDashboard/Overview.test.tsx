@@ -3,10 +3,13 @@ import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
 import Overview from '../../../resources/js/Pages/CheckybotDashboard/Overview';
 import { overview, problem } from './fixtures';
 
+// One minute after the fixture's updated_at, so the fixtures read as fresh unless a test says otherwise.
+const now = () => Date.parse('2026-08-07T12:00:00Z');
+
 function renderOverview(props = overview(), extra: Record<string, unknown> = {}) {
   let renderer!: TestRenderer.ReactTestRenderer;
   act(() => {
-    renderer = TestRenderer.create(<Overview {...props} formatDate={(value) => `LOCAL ${value}`} {...extra} />);
+    renderer = TestRenderer.create(<Overview {...props} formatDate={(value) => `LOCAL ${value}`} now={now} {...extra} />);
   });
   return renderer;
 }
@@ -57,6 +60,23 @@ it('never presents stale data as healthy and renders problem and empty-project s
   };
   const empty = renderOverview(overview({ summary: { counts: emptyCounts, stale: false, updated_at: null } }));
   expect(text(empty.root.findByProps({ 'data-testid': 'empty-project' }))).toContain('No monitors');
+});
+
+it.each([
+  ['updated_at=null with the server reporting fresh', { updated_at: null, stale: false }],
+  ['a local age greater than 900 seconds', { updated_at: '2026-08-07T11:44:59Z', stale: false }],
+] as const)('never presents %s as healthy', (_label, freshness) => {
+  const renderer = renderOverview(overview({ summary: { ...overview().summary, ...freshness } }));
+
+  expect(text(renderer.root.findByProps({ 'data-testid': 'stale-summary' }))).toContain('Status data is stale');
+  expect(renderer.root.findAllByProps({ 'data-testid': 'all-healthy' })).toHaveLength(0);
+});
+
+it('keeps a local age of exactly 900 seconds healthy', () => {
+  const renderer = renderOverview(overview({ summary: { ...overview().summary, updated_at: '2026-08-07T11:45:00Z' } }));
+
+  expect(renderer.root.findByProps({ 'data-testid': 'all-healthy' })).toBeTruthy();
+  expect(renderer.root.findAllByProps({ 'data-testid': 'stale-summary' })).toHaveLength(0);
 });
 
 it('renders deterministic loading and error states while retaining contract-valid results', async () => {

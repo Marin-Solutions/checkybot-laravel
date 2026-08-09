@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import type { CheckybotClient } from '../api/CheckybotApiClient';
-import { STATUS_KINDS, STATUS_STATES, deriveFreshness, type StatusSummary } from '../contracts/monitor-domain.generated';
+import { StatusAuthError, type CheckybotClient } from '../api/CheckybotApiClient';
+import { STATUS_KINDS, STATUS_STATES, type StatusSummary } from '../contracts/monitor-domain.generated';
+import { deriveStatusPhase, type StatusPhase } from './statusPhase';
 
 export interface SummaryCache {
   read(): StatusSummary | null;
@@ -26,7 +27,7 @@ export function StatusScreen({ api, cache, now = Date.now, onOpenNotification }:
   const resolvedCache = cache ?? internalCache.current;
   const [summary, setSummary] = useState<StatusSummary | null>(() => resolvedCache.read());
   const [loading, setLoading] = useState(summary === null);
-  const [offline, setOffline] = useState(false);
+  const [failure, setFailure] = useState<'auth' | 'offline' | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const request = useRef(0);
 
@@ -38,11 +39,11 @@ export function StatusScreen({ api, cache, now = Date.now, onOpenNotification }:
       if (current !== request.current) return;
       resolvedCache.write(next);
       setSummary(next);
-      setOffline(false);
+      setFailure(null);
       setErrorMessage('');
     } catch (caught) {
       if (current !== request.current) return;
-      setOffline(true);
+      setFailure(caught instanceof StatusAuthError ? 'auth' : 'offline');
       setErrorMessage(caught instanceof Error ? caught.message : 'Unable to refresh status.');
     } finally {
       if (current === request.current) setLoading(false);
@@ -52,7 +53,19 @@ export function StatusScreen({ api, cache, now = Date.now, onOpenNotification }:
   useEffect(() => { void refresh(); }, []); // Initial fetch is intentionally once per mounted screen.
 
   const age = summary ? lastSynced(summary, now()) : null;
-  const allHealthy = summary ? STATUS_KINDS.every((kind) => summary.counts[kind].warn === 0 && summary.counts[kind].down === 0) : false;
+  const dataPhase = summary ? deriveStatusPhase(summary, now()) : null;
+  // A failed refresh means current health cannot be confirmed, so cached counts never earn the
+  // all-clear however fresh their timestamp is — see the freshness gate in docs/release-hardening.md.
+  const phase: StatusPhase | null = dataPhase === 'healthy' && failure !== null ? 'stale' : dataPhase;
+  const problemRows = summary ? STATUS_KINDS.flatMap((kind) => STATUS_STATES
+    .filter((state) => state !== 'healthy' && summary.counts[kind][state] > 0)
+    .map((state) => (
+      <View key={`${kind}-${state}`} style={styles.problemRow} testID={`problem-${kind}-${state}`}>
+        <View style={[styles.dot, state === 'down' ? styles.down : styles.warn]} />
+        <Text style={styles.problemName}>{label(kind)} · {state === 'down' ? 'Down' : 'Warning'}</Text>
+        <Text style={styles.count}>{summary.counts[kind][state]}</Text>
+      </View>
+    ))) : [];
 
   return (
     <View style={styles.page}>
@@ -68,36 +81,32 @@ export function StatusScreen({ api, cache, now = Date.now, onOpenNotification }:
         </View>
       ) : null}
 
-      {offline ? (
-        <View accessibilityRole="alert" style={styles.offline} testID="offline-banner">
-          <Text style={styles.offlineTitle}>You’re offline</Text>
+      {failure ? (
+        <View accessibilityRole="alert" style={styles.offline} testID={failure === 'auth' ? 'auth-banner' : 'offline-banner'}>
+          <Text style={styles.offlineTitle}>{failure === 'auth' ? 'Sign in again' : 'You’re offline'}</Text>
           <Text style={styles.offlineText}>{summary ? 'Showing your last synced status.' : 'No saved status is available.'}</Text>
           <Text style={styles.offlineDetail}>{errorMessage}</Text>
         </View>
       ) : null}
 
-      {summary ? (
+      {summary && phase ? (
         <View style={styles.card} testID="status-summary">
           <View style={styles.summaryHeading}>
-            <Text style={styles.cardTitle}>{allHealthy ? 'Everything is healthy' : 'Problems need attention'}</Text>
+            <Text style={styles.cardTitle}>{HEADLINES[phase]}</Text>
             <Text testID="last-synced" style={styles.synced}>Last synced {age}</Text>
           </View>
-          {deriveFreshness(summary, now()) === 'stale' ? <Text style={styles.stale}>Status data is stale</Text> : null}
-          {allHealthy ? (
+          {phase === 'healthy' ? (
             <Text style={styles.healthyMessage} testID="all-healthy">No warnings or outages right now.</Text>
-          ) : (
-            <View testID="problem-list">
-              {STATUS_KINDS.flatMap((kind) => STATUS_STATES
-                .filter((state) => state !== 'healthy' && summary.counts[kind][state] > 0)
-                .map((state) => (
-                  <View key={`${kind}-${state}`} style={styles.problemRow} testID={`problem-${kind}-${state}`}>
-                    <View style={[styles.dot, state === 'down' ? styles.down : styles.warn]} />
-                    <Text style={styles.problemName}>{label(kind)} · {state === 'down' ? 'Down' : 'Warning'}</Text>
-                    <Text style={styles.count}>{summary.counts[kind][state]}</Text>
-                  </View>
-                )))}
-            </View>
-          )}
+          ) : null}
+          {phase === 'empty' ? (
+            <Text style={styles.neutralMessage} testID="empty-project">No monitors have been added to this project yet.</Text>
+          ) : null}
+          {phase === 'stale' ? (
+            <Text accessibilityRole="alert" style={styles.staleMessage} testID="stale-summary">
+              Status data is stale. Current health cannot be confirmed.
+            </Text>
+          ) : null}
+          {problemRows.length > 0 ? <View testID="problem-list">{problemRows}</View> : null}
         </View>
       ) : null}
 
@@ -114,6 +123,13 @@ export function StatusScreen({ api, cache, now = Date.now, onOpenNotification }:
     </View>
   );
 }
+
+const HEADLINES: Record<StatusPhase, string> = {
+  empty: 'No monitors yet',
+  stale: 'Status not confirmed',
+  problem: 'Problems need attention',
+  healthy: 'Everything is healthy',
+};
 
 function label(kind: (typeof STATUS_KINDS)[number]): string {
   return kind === 'apis' ? 'APIs' : kind[0]!.toUpperCase() + kind.slice(1);
@@ -140,7 +156,8 @@ const styles = StyleSheet.create({
   summaryHeading: { gap: 4, marginBottom: 18 },
   cardTitle: { color: '#0f172a', fontSize: 21, fontWeight: '800' },
   synced: { color: '#64748b', fontSize: 13 },
-  stale: { color: '#b45309', fontWeight: '700', marginBottom: 12 },
+  staleMessage: { backgroundColor: '#fffbeb', borderRadius: 12, color: '#b45309', fontSize: 16, fontWeight: '700', padding: 18 },
+  neutralMessage: { backgroundColor: '#f1f5f9', borderRadius: 12, color: '#475569', fontSize: 16, fontWeight: '700', padding: 18 },
   healthyMessage: { backgroundColor: '#ecfdf5', borderRadius: 12, color: '#047857', fontSize: 16, fontWeight: '700', padding: 18 },
   problemRow: { alignItems: 'center', borderTopColor: '#e2e8f0', borderTopWidth: 1, flexDirection: 'row', minHeight: 54 },
   dot: { borderRadius: 6, height: 12, marginRight: 12, width: 12 },

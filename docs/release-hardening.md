@@ -14,6 +14,19 @@ This is the executable v1 release gate. It is fail-closed: a missing, stale, uns
 | Fleet readiness | Every enabled server satisfies `fleet-readiness.v1`. | `evidence/<run-id>/fleet-readiness.json` | Fleet rollout owner | Latest report no older than 120 seconds; inventory expires after 24 hours | Missing heartbeat, rejected report, prerequisite/cap/version drift, redaction failure |
 | Secret scan | 0 plaintext tokens, provider credentials, webhook URLs, authorization values, or unredacted payloads. | `evidence/<run-id>/secret-scan.txt` | Security owner | Run last, immediately before signing | Any match |
 
+## Status freshness implementation
+
+The freshness gate is enforced by one rule, `deriveStatusPhase()`. Only its `healthy` phase may be
+rendered with success/green semantics; `empty`, `stale`, and `problem` never are, and a failed or
+rejected refresh withdraws the all-clear regardless of how fresh the cached timestamp is.
+
+- Mobile status screen and widget: `mobile/src/status/statusPhase.ts`
+- Web dashboard: `resources/js/Components/CheckybotDashboard/statusPhase.ts`
+
+The rule is implemented twice because Metro builds the mobile bundle rooted at `mobile/` and cannot
+import from the web tree. `tests/Component/ReleaseHardening/StatusPhaseParity.test.ts` fails if the
+two copies ever disagree, so treat them as one file with two locations.
+
 ## Canonical commands
 
 Run from the repository root. Capture output and exit code without changing the commands.

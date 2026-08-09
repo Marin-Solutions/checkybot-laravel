@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { StatusAuthError } from '../../../mobile/src/api/CheckybotApiClient';
 import type { StatusSummary } from '../../../mobile/src/contracts/monitor-domain.generated';
 import { MemorySummaryCache, StatusScreen } from '../../../mobile/src/status/StatusScreen';
 
@@ -68,4 +69,79 @@ test('refresh failure persistently keeps cached counts and last-sync age beside 
   expect(screen.getByTestId('problem-servers-down')).toHaveTextContent(/2/);
   expect(screen.getByTestId('last-synced')).toHaveTextContent('Last synced 5m ago');
   await waitFor(() => expect(getStatusSummary).toHaveBeenCalledTimes(2));
+});
+
+// --- Status freshness gate (docs/release-hardening.md): stale, unknown, error, and auth states
+// --- must never render the green all-clear on the status surface.
+
+const emptyCounts: StatusSummary['counts'] = {
+  servers: { healthy: 0, warn: 0, down: 0 },
+  websites: { healthy: 0, warn: 0, down: 0 },
+  apis: { healthy: 0, warn: 0, down: 0 },
+};
+
+function expectNoHealthySemantics() {
+  expect(screen.queryByTestId('all-healthy')).not.toBeOnTheScreen();
+  expect(screen.queryByText('Everything is healthy')).not.toBeOnTheScreen();
+  expect(screen.queryByText(/No warnings or outages right now/)).not.toBeOnTheScreen();
+}
+
+test.each([
+  ['updated_at=null', { updated_at: null, stale: false }],
+  ['server stale=true', { updated_at: '2026-08-08T11:55:00Z', stale: true }],
+  ['local age greater than 900 seconds', { updated_at: '2026-08-08T11:44:59Z', stale: false }],
+] as const)('%s renders the stale state and never the green all-clear', async (_label, freshness) => {
+  const summary: StatusSummary = { ...healthy, ...freshness };
+  render(<StatusScreen api={{ getStatusSummary: jest.fn().mockResolvedValue(summary) }} now={now} />);
+
+  expect(await screen.findByTestId('stale-summary')).toHaveTextContent(/Current health cannot be confirmed/);
+  expect(screen.getByText('Status not confirmed')).toBeOnTheScreen();
+  expectNoHealthySemantics();
+});
+
+test('local age of exactly 900 seconds is still fresh enough to be healthy', async () => {
+  const summary: StatusSummary = { ...healthy, updated_at: '2026-08-08T11:45:00Z' };
+  render(<StatusScreen api={{ getStatusSummary: jest.fn().mockResolvedValue(summary) }} now={now} />);
+
+  expect(await screen.findByTestId('all-healthy')).toBeOnTheScreen();
+  expect(screen.queryByTestId('stale-summary')).not.toBeOnTheScreen();
+});
+
+test('a project with no monitors reads as empty rather than healthy', async () => {
+  const summary: StatusSummary = { counts: emptyCounts, updated_at: '2026-08-08T11:55:00Z', stale: false };
+  render(<StatusScreen api={{ getStatusSummary: jest.fn().mockResolvedValue(summary) }} now={now} />);
+
+  expect(await screen.findByTestId('empty-project')).toHaveTextContent(/No monitors have been added/);
+  expectNoHealthySemantics();
+});
+
+test('a transport failure over fresh healthy cache withdraws the all-clear', async () => {
+  const getStatusSummary = jest.fn()
+    .mockResolvedValueOnce(healthy)
+    .mockRejectedValueOnce(new Error('Status API transport failed'));
+  render(<StatusScreen api={{ getStatusSummary }} cache={new MemorySummaryCache()} now={now} />);
+  await screen.findByTestId('all-healthy');
+
+  fireEvent.press(screen.getByRole('button', { name: 'Refresh status' }));
+
+  expect(await screen.findByTestId('offline-banner')).toHaveProp('accessibilityRole', 'alert');
+  expect(screen.getByTestId('stale-summary')).toBeOnTheScreen();
+  expect(screen.getByTestId('last-synced')).toHaveTextContent('Last synced 5m ago');
+  expectNoHealthySemantics();
+  await waitFor(() => expect(getStatusSummary).toHaveBeenCalledTimes(2));
+});
+
+test('a 401/403 surfaces as an auth state distinct from offline and withdraws the all-clear', async () => {
+  const getStatusSummary = jest.fn()
+    .mockResolvedValueOnce(healthy)
+    .mockRejectedValueOnce(new StatusAuthError('Your session has expired. Sign in again to see live status.'));
+  render(<StatusScreen api={{ getStatusSummary }} cache={new MemorySummaryCache()} now={now} />);
+  await screen.findByTestId('all-healthy');
+
+  fireEvent.press(screen.getByRole('button', { name: 'Refresh status' }));
+
+  expect(await screen.findByTestId('auth-banner')).toHaveTextContent(/Sign in again/);
+  expect(screen.queryByTestId('offline-banner')).not.toBeOnTheScreen();
+  expect(screen.getByTestId('stale-summary')).toBeOnTheScreen();
+  expectNoHealthySemantics();
 });

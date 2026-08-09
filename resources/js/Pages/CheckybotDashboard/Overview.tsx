@@ -5,6 +5,7 @@ import { MaintenanceBanner } from '../../Components/CheckybotDashboard/Maintenan
 import { ProblemFilters, dashboardQuery, normalizedFilters } from '../../Components/CheckybotDashboard/ProblemFilters';
 import { ProblemList } from '../../Components/CheckybotDashboard/ProblemList';
 import { StatusGrid } from '../../Components/CheckybotDashboard/StatusGrid';
+import { deriveStatusPhase, isStale } from '../../Components/CheckybotDashboard/statusPhase';
 import { Card, CardContent } from '../../Components/CheckybotDashboard/ui';
 
 export type OverviewVisit = (url: string, options?: { replace?: boolean }) => Promise<OverviewProps>;
@@ -27,26 +28,19 @@ function commitBrowserUrl(url: string, replace: boolean): void {
   window.history[replace ? 'replaceState' : 'pushState']({}, '', url);
 }
 
-function totalCounts(summary: OverviewProps['summary']): { total: number; problems: number } {
-  return Object.values(summary.counts).reduce((result, counts) => ({
-    total: result.total + counts.healthy + counts.warn + counts.down,
-    problems: result.problems + counts.warn + counts.down,
-  }), { total: 0, problems: 0 });
-}
-
-function SummaryMessage({ props, formatDate }: { props: OverviewProps; formatDate: DateFormatter }) {
-  const totals = totalCounts(props.summary);
-  if (totals.total === 0) {
+function SummaryMessage({ props, formatDate, nowMs }: { props: OverviewProps; formatDate: DateFormatter; nowMs: number }) {
+  const phase = deriveStatusPhase(props.summary, nowMs);
+  if (phase === 'empty') {
     return <p data-testid="empty-project">No monitors have been added to this project yet.</p>;
   }
-  if (props.summary.stale) {
+  if (phase === 'stale') {
     return (
       <p className="font-medium text-amber-900" data-testid="stale-summary" role="status">
         Status data is stale. {props.summary.updated_at ? `Last update ${formatDate(props.summary.updated_at)}.` : 'No recent update is available.'}
       </p>
     );
   }
-  if (totals.problems === 0 && props.problems.length === 0) {
+  if (phase === 'healthy' && props.problems.length === 0) {
     return <p className="font-medium text-emerald-800" data-testid="all-healthy">Everything is healthy. No warnings or outages right now.</p>;
   }
   return <p className="font-medium text-rose-800" data-testid="problem-summary">Problems need attention. Review the returned monitors below.</p>;
@@ -55,10 +49,12 @@ function SummaryMessage({ props, formatDate }: { props: OverviewProps; formatDat
 export default function Overview(initialProps: OverviewProps & {
   visit?: OverviewVisit;
   formatDate?: DateFormatter;
+  now?: () => number;
 }) {
   const {
     visit = inertiaVisit,
     formatDate = formatLocalDateTime,
+    now = Date.now,
     filters,
     maintenance,
     pagination,
@@ -126,10 +122,11 @@ export default function Overview(initialProps: OverviewProps & {
     return () => window.removeEventListener('popstate', restore);
   }, [navigate]);
 
+  const nowMs = now();
   const freshness = useMemo(() => {
     if (!page.summary.updated_at) return 'Freshness unavailable';
-    return `${page.summary.stale ? 'Stale' : 'Updated'} ${formatDate(page.summary.updated_at)}`;
-  }, [formatDate, page.summary.stale, page.summary.updated_at]);
+    return `${isStale(page.summary, nowMs) ? 'Stale' : 'Updated'} ${formatDate(page.summary.updated_at)}`;
+  }, [formatDate, nowMs, page.summary]);
 
   const applyFilters = async (nextFilters: OverviewProps['filters']) => {
     const normalized = normalizedFilters(nextFilters);
@@ -149,7 +146,7 @@ export default function Overview(initialProps: OverviewProps & {
         <StatusGrid counts={page.summary.counts} />
         <Card aria-live="polite">
           <CardContent>
-            <SummaryMessage formatDate={formatDate} props={page} />
+            <SummaryMessage formatDate={formatDate} nowMs={nowMs} props={page} />
           </CardContent>
         </Card>
         <ProblemFilters disabled={pending} filters={page.filters} onChange={applyFilters} />

@@ -1,19 +1,26 @@
 import {
   STATUS_KINDS,
   STATUS_STATES,
-  deriveFreshness,
   parseStatusSummaryResponse,
   type StatusKind,
   type StatusState,
   type StatusSummary,
 } from '../contracts/monitor-domain.generated';
+import { deriveStatusPhase } from '../status/statusPhase';
 
 export const WIDGET_ROWS = STATUS_KINDS;
 export const WIDGET_COLUMNS = STATUS_STATES;
 export const WIDGET_STALE_AFTER_SECONDS = 900;
 export const WIDGET_PROBLEMS_STATES = 'warn,down' as const;
 
-export type WidgetPhase = 'loading' | 'healthy' | 'problem' | 'stale' | 'auth' | 'offline';
+const SUMMARY_MESSAGES = {
+  empty: 'No monitors yet',
+  stale: 'Stale data',
+  problem: 'Problems detected',
+  healthy: 'All systems healthy',
+} as const;
+
+export type WidgetPhase = 'loading' | 'healthy' | 'problem' | 'stale' | 'empty' | 'auth' | 'offline';
 export type WidgetTone = 'healthy-green' | 'problem' | 'warning-dimmed' | 'neutral';
 
 export interface WidgetEntry {
@@ -108,16 +115,15 @@ export class StatusWidgetTimelineProvider {
 
   private summaryEntry(summary: StatusSummary): WidgetEntry {
     const createdAtMs = this.now();
-    const hasProblems = WIDGET_ROWS.some((row) => summary.counts[row].warn > 0 || summary.counts[row].down > 0);
-    const stale = deriveFreshness(summary, createdAtMs) === 'stale';
+    const phase = deriveStatusPhase(summary, createdAtMs);
     return {
-      phase: stale ? 'stale' : hasProblems ? 'problem' : 'healthy',
+      phase,
       summary,
       sourceUpdatedAt: summary.updated_at,
       visibleUpdatedAtMs: validTimestamp(summary.updated_at) ?? createdAtMs,
       createdAtMs,
       nextReloadAtMs: createdAtMs + this.reloadIntervalMs,
-      message: stale ? 'Stale data' : hasProblems ? 'Problems detected' : 'All systems healthy',
+      message: SUMMARY_MESSAGES[phase],
     };
   }
 
