@@ -1,0 +1,45 @@
+[stage=worker-start] run_id=429ae1bd-7800-46fe-9f64-2d1a4529e66c
+  2026-08-08 00:17:57 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessMonitorResult  RUNNING
+  2026-08-08 00:17:57 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessMonitorResult  74.12ms DONE
+  2026-08-08 00:17:57 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessMonitorResult  RUNNING
+  2026-08-08 00:17:57 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessMonitorResult  51.47ms DONE
+  2026-08-08 00:17:57 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessIncidentTransition  RUNNING
+  2026-08-08 00:17:57 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessIncidentTransition  31.15ms DONE
+  2026-08-08 00:17:58 MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Jobs\DeliverFoundationEvent  RUNNING
+  2026-08-08 00:17:58 MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Jobs\DeliverFoundationEvent  55.71ms DONE
+  2026-08-08 00:17:58 MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Jobs\DeliverFoundationEvent  RUNNING
+  2026-08-08 00:17:58 MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Jobs\DeliverFoundationEvent  47.26ms DONE
+  2026-08-08 00:17:58 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessMonitorResult  RUNNING
+  2026-08-08 00:17:58 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessMonitorResult  33.70ms DONE
+  2026-08-08 00:17:58 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessMonitorResult  RUNNING
+  2026-08-08 00:17:58 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessMonitorResult  33.01ms DONE
+  2026-08-08 00:17:58 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessMonitorResult  RUNNING
+  2026-08-08 00:17:58 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessMonitorResult  53.27ms DONE
+  2026-08-08 00:17:58 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessMonitorResult  RUNNING
+  2026-08-08 00:17:58 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessMonitorResult  41.34ms DONE
+  2026-08-08 00:17:58 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessMonitorResult  RUNNING
+  2026-08-08 00:17:58 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessMonitorResult  33.90ms DONE
+  2026-08-08 00:17:58 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessMonitorResult  RUNNING
+  2026-08-08 00:17:59 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessMonitorResult  135.71ms DONE
+  2026-08-08 00:17:59 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessIncidentTransition  RUNNING
+  2026-08-08 00:17:59 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessIncidentTransition  98.23ms DONE
+  2026-08-08 00:17:59 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessIncidentTransition  RUNNING
+  2026-08-08 00:17:59 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\ProcessIncidentTransition  30.92ms DONE
+  2026-08-08 00:18:14 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\EmitIncidentIntent  RUNNING
+  2026-08-08 00:18:14 MarinSolutions\CheckybotLaravel\Domain\Alerting\Jobs\EmitIncidentIntent  44.25ms DONE
+  2026-08-08 00:18:15 MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Jobs\DeliverFoundationEvent  RUNNING
+  2026-08-08 00:18:15 MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Jobs\DeliverFoundationEvent  63.92ms DONE
+  2026-08-08 00:18:15 MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Jobs\DeliverFoundationEvent  RUNNING
+  2026-08-08 00:18:15 MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Jobs\DeliverFoundationEvent  62.57ms DONE
+  2026-08-08 00:18:15 MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Jobs\DeliverFoundationEvent  RUNNING
+  2026-08-08 00:18:15 MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Jobs\DeliverFoundationEvent  61.28ms DONE
+  2026-08-08 00:18:15 MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Jobs\DeliverFoundationEvent  RUNNING
+  2026-08-08 00:18:15 MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Jobs\DeliverFoundationEvent  53.72ms DONE
+  2026-08-08 00:18:15 MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Jobs\DeliverFoundationEvent  RUNNING
+  2026-08-08 00:18:15 MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Jobs\DeliverFoundationEvent  72.69ms DONE
+  2026-08-08 00:18:15 MarinSolutions\CheckybotLaravel\Domain\Push\Jobs\ProcessNotificationIntent  RUNNING
+  2026-08-08 00:18:15 MarinSolutions\CheckybotLaravel\Domain\Push\Jobs\ProcessNotificationIntent  82.04ms DONE
+  2026-08-08 00:18:15 MarinSolutions\CheckybotLaravel\Domain\Push\Jobs\DeliverExpoPush  RUNNING
+  2026-08-08 00:18:15 MarinSolutions\CheckybotLaravel\Domain\Push\Jobs\DeliverExpoPush  60.54ms DONE
+  2026-08-08 00:18:16 MarinSolutions\CheckybotLaravel\Domain\Push\Jobs\DeliverLegacyWebhook  RUNNING
+  2026-08-08 00:18:16 MarinSolutions\CheckybotLaravel\Domain\Push\Jobs\DeliverLegacyWebhook  133.82ms DONE

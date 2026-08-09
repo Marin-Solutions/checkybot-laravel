@@ -5,23 +5,31 @@ namespace MarinSolutions\CheckybotLaravel\Facades;
 use Illuminate\Support\Facades\Facade;
 use MarinSolutions\CheckybotLaravel\CheckRegistry;
 use MarinSolutions\CheckybotLaravel\Checks\ApiCheck;
+use MarinSolutions\CheckybotLaravel\Checks\DomainExpiryCheck;
+use MarinSolutions\CheckybotLaravel\Checks\ResponseTimeBudgetCheck;
 use MarinSolutions\CheckybotLaravel\Checks\SslCheck;
 use MarinSolutions\CheckybotLaravel\Checks\UptimeCheck;
 
 /**
  * Facade for defining monitoring checks.
  *
- * Provides a fluent, expressive API for defining uptime, SSL, and API checks
- * that will be synced to your Checkybot instance.
+ * Provides the fluent declaration API for the versioned check-sync.v1 body.
+ * Existing uptime, SSL, API, link, and OpenGraph methods remain compatible.
+ * Header/token plaintext is sent only to the authenticated HTTPS API for
+ * downstream encryption and is masked from package output and diagnostics.
  *
  * @method static UptimeCheck uptime(string $name) Create a new uptime check
  * @method static SslCheck ssl(string $name) Create a new SSL certificate check
  * @method static ApiCheck api(string $name) Create a new API endpoint check
+ * @method static DomainExpiryCheck domainExpiry(string $name) Create a new domain-expiry check
+ * @method static ResponseTimeBudgetCheck responseTimeBudget(string $name) Create a new response-time budget check
  * @method static \MarinSolutions\CheckybotLaravel\Checks\LinkCheck links(string $name) Create a new dead link check
  * @method static \MarinSolutions\CheckybotLaravel\Checks\OpenGraphCheck openGraph(string $name) Create a new OpenGraph check
  * @method static array<int, UptimeCheck> getUptimeChecks() Get all registered uptime checks
  * @method static array<int, SslCheck> getSslChecks() Get all registered SSL checks
  * @method static array<int, ApiCheck> getApiChecks() Get all registered API checks
+ * @method static array<int, DomainExpiryCheck> getDomainExpiryChecks() Get all registered domain-expiry checks
+ * @method static array<int, ResponseTimeBudgetCheck> getResponseTimeBudgetChecks() Get all registered response-time budgets
  * @method static array<int, \MarinSolutions\CheckybotLaravel\Checks\LinkCheck> getLinkChecks() Get all registered link checks
  * @method static array<int, \MarinSolutions\CheckybotLaravel\Checks\OpenGraphCheck> getOpenGraphChecks() Get all registered OpenGraph checks
  * @method static int count() Get the total number of registered checks
@@ -44,13 +52,28 @@ use MarinSolutions\CheckybotLaravel\Checks\UptimeCheck;
  *     ->url('https://example.com')
  *     ->daily();
  * ```
- * @example API check with assertions
+ * @example API status, latency, and body assertions
  * ```php
  * Checkybot::api('health')
  *     ->url('https://example.com/api/health')
  *     ->every('5m')
+ *     ->expectStatus(200)
+ *     ->maxLatency(750)
  *     ->expect('status')->toEqual('healthy')
  *     ->expect('database.connected')->toBeTrue();
+ * ```
+ * @example Domain expiry warning and p95 response budget
+ * ```php
+ * Checkybot::domainExpiry('primary-domain')
+ *     ->url('https://example.com')
+ *     ->daily()
+ *     ->warnDays(30);
+ *
+ * Checkybot::responseTimeBudget('homepage-p95')
+ *     ->url('https://example.com')
+ *     ->everyFiveMinutes()
+ *     ->percentile(95)
+ *     ->budgetMs(2000);
  * ```
  */
 class Checkybot extends Facade

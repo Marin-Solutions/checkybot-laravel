@@ -1,0 +1,24 @@
+{
+  "slice_key": "test-harness",
+  "title": "Test harness bootstrap",
+  "spec_path": ".full-send/canvas-runs/current/slices/test-harness/spec.json",
+  "mandate": "Build and prove the canonical cross-surface verification harness before product work: app dev server lifecycle, web/Expo build and serve lifecycle, headless Playwright smoke flow, and queue worker lifecycle must execute successfully in this environment and emit the integration-verification artifact template later slices reuse. No product behavior beyond harness fixtures. Verification expectations: harness proof artifact, feature tests for harness commands, component tests for harness UI fixtures, and a full-runtime Playwright journey through the canonical harness with the queue worker running.",
+  "ownership": {
+    "files": [
+      ".full-send/canvas-runs/current/integration-verification-template.md",
+      ".env.example",
+      "composer.json",
+      "package.json",
+      "package-lock.json",
+      "playwright.config.ts",
+      "scripts/harness",
+      "scripts/runtime",
+      "e2e",
+      "tests/Browser/Harness",
+      "tests/Feature/Harness"
+    ],
+    "migration_timestamp_range": "none"
+  },
+  "contracts": [],
+  "owned_seams": []
+}

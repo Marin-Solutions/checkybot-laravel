@@ -1,0 +1,41 @@
+{
+  "name": "@checkybot/mobile",
+  "version": "1.0.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "contracts:generate": "node scripts/generate-contracts.mjs",
+    "contracts:check": "node scripts/generate-contracts.mjs --check",
+    "typecheck": "tsc --noEmit",
+    "test": "jest --config jest.config.cjs --runInBand",
+    "build:ios": "expo export --platform ios --output-dir build/ios --clear",
+    "build:android": "expo export --platform android --output-dir build/android --clear",
+    "build:web:harness": "EXPO_PUBLIC_CHECKYBOT_HARNESS=true expo export --platform web --output-dir ../build/harness-fixture --clear",
+    "widget:config:verify": "node scripts/verify-status-widget-config.mjs"
+  },
+  "dependencies": {
+    "expo": "~54.0.30",
+    "expo-constants": "~18.0.13",
+    "expo-linking": "~8.0.12",
+    "expo-notifications": "~0.32.17",
+    "expo-router": "~6.0.24",
+    "expo-secure-store": "~15.0.8",
+    "expo-status-bar": "~3.0.9",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-safe-area-context": "~5.6.0",
+    "react-native-screens": "~4.16.0",
+    "react-native-web": "^0.21.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@testing-library/react-native": "^13.3.3",
+    "@types/jest": "^29.5.14",
+    "@types/react": "~19.1.10",
+    "jest": "^29.7.0",
+    "jest-expo": "~54.0.17",
+    "react-test-renderer": "19.1.0",
+    "typescript": "~5.9.2"
+  }
+}

@@ -2,6 +2,8 @@
 
 namespace MarinSolutions\CheckybotLaravel\Checks;
 
+use JsonSerializable;
+
 /**
  * Base class for all check types.
  *
@@ -9,7 +11,7 @@ namespace MarinSolutions\CheckybotLaravel\Checks;
  *
  * @internal
  */
-abstract class BaseCheck
+abstract class BaseCheck implements JsonSerializable
 {
     /**
      * The unique name/identifier for this check.
@@ -345,7 +347,55 @@ abstract class BaseCheck
     }
 
     /**
-     * Convert the check to array format for the API.
+     * Return a representation suitable for logs, snapshots and console output.
+     * Header names are retained for diagnostics; every value is masked.
+     *
+     * @return array<string, mixed>
+     */
+    public function toSafeArray(): array
+    {
+        $data = $this->toArray();
+
+        if (isset($data['headers']) && is_array($data['headers'])) {
+            $data['headers'] = array_fill_keys(array_keys($data['headers']), '[REDACTED]');
+        }
+
+        return $data;
+    }
+
+    /** @return array<string, mixed> */
+    public function jsonSerialize(): array
+    {
+        return $this->toSafeArray();
+    }
+
+    /** @return array<string, mixed> */
+    public function __debugInfo(): array
+    {
+        return $this->toSafeArray();
+    }
+
+    /**
+     * Native serialization is an observability surface, not a wire transport.
+     * It deliberately cannot persist header plaintext.
+     *
+     * @return array<string, mixed>
+     */
+    public function __serialize(): array
+    {
+        return $this->toSafeArray();
+    }
+
+    /** @param array<string, mixed> $data */
+    public function __unserialize(array $data): void
+    {
+        $this->name = is_string($data['name'] ?? null) ? $data['name'] : '';
+        $this->url = is_string($data['url'] ?? null) ? $data['url'] : '';
+        $this->interval = is_string($data['interval'] ?? null) ? $data['interval'] : '5m';
+    }
+
+    /**
+     * Convert the check to the in-memory outbound API representation.
      *
      * @return array<string, mixed>
      */

@@ -1,0 +1,609 @@
+# Generated Full Send Run Plan — Checkybot
+
+Partitioned into foundation, delivery, and polish slices with non-overlapping ownership, unique `spec_path` values, migration ranges, dependencies, contracts, and integration seams. No design inventory was present, so no screen/component ownership is emitted.
+
+```full-send-run-plan
+{
+  "foundation_slices": [
+    {
+      "slice_key": "test-harness",
+      "title": "Test harness bootstrap",
+      "spec_path": ".full-send/canvas-runs/current/slices/test-harness/spec.json",
+      "mandate": "Build and prove the canonical cross-surface verification harness before product work: app dev server lifecycle, web/Expo build and serve lifecycle, headless Playwright smoke flow, and queue worker lifecycle must execute successfully in this environment and emit the integration-verification artifact template later slices reuse. No product behavior beyond harness fixtures. Verification expectations: harness proof artifact, feature tests for harness commands, component tests for harness UI fixtures, and a full-runtime Playwright journey through the canonical harness with the queue worker running.",
+      "ownership": {
+        "files": [
+          ".full-send/canvas-runs/current/integration-verification-template.md",
+          ".env.example",
+          "composer.json",
+          "package.json",
+          "package-lock.json",
+          "playwright.config.ts",
+          "scripts/harness",
+          "scripts/runtime",
+          "e2e",
+          "tests/Browser/Harness",
+          "tests/Feature/Harness"
+        ],
+        "migration_timestamp_range": "none"
+      },
+      "contracts": [],
+      "owned_seams": []
+    },
+    {
+      "slice_key": "domain-runtime-foundation",
+      "title": "Shared monitor domain, runtime seams, and contracts",
+      "spec_path": ".full-send/canvas-runs/current/slices/domain-runtime-foundation/spec.json",
+      "mandate": "Hoist shared primitives required by multiple delivery slices: monitor identity/type taxonomy for servers/websites/APIs, healthy/warn/down/recovering state vocabulary, incident transition history schema, status-summary read-model contract, encrypted secret/token value objects, redaction utilities, outbox/queue/scheduler registration conventions, API resources, and test fakes. Own /api/status-summary as the canonical nine-number read contract with freshness metadata so web, mobile, and widget do not duplicate it. Verification expectations: foundation feature tests for models/resources/outbox fakes, component contract tests for shared API/client DTOs, and a full-runtime Playwright journey through the canonical harness with the queue worker running.",
+      "ownership": {
+        "files": [
+          "app/Domain/Monitoring/Foundation",
+          "app/Domain/Security/Foundation",
+          "app/Http/Controllers/StatusSummaryController.php",
+          "app/Http/Resources/MonitoringFoundation",
+          "app/Models/MonitorState.php",
+          "app/Models/MonitorTransition.php",
+          "app/Models/OutboxEvent.php",
+          "app/Models/ProjectApiToken.php",
+          "config/checkybot.php",
+          "database/migrations/2026_08_06_000000-2026_08_06_009999",
+          "packages/contracts",
+          "routes/status-summary.php",
+          "tests/Feature/MonitoringFoundation",
+          "tests/Unit/MonitoringFoundation"
+        ],
+        "migration_timestamp_range": "2026_08_06_000000-2026_08_06_009999"
+      },
+      "contracts": [
+        {
+          "provides": "MonitorDomainContracts",
+          "to": [
+            "alerting-reliability-core",
+            "push-mobile-widget-status",
+            "agent-v2-expanded-monitors",
+            "web-dashboard-api-builder",
+            "laravel-sdk-monitor-definitions",
+            "ai-incident-annotations"
+          ],
+          "contract": "Typed monitor identity, state, severity, transition, status-summary, encrypted secret, redaction, and outbox interfaces."
+        },
+        {
+          "provides": "StatusSummaryReadModel",
+          "to": [
+            "push-mobile-widget-status",
+            "web-dashboard-api-builder"
+          ],
+          "contract": "GET /api/status-summary returns the nine counts by monitor type and state plus updated_at/stale flags."
+        }
+      ],
+      "owned_seams": [
+        {
+          "seam_key": "monitor-domain-contracts",
+          "event_or_interface": "MonitorDomainContracts",
+          "producer_slice": "domain-runtime-foundation",
+          "consumer_slice": "alerting-reliability-core",
+          "owner_slice": "domain-runtime-foundation",
+          "wiring": "Autoloaded foundation DTOs, interfaces, migrations, API resources, and fake implementations are registered by the foundation module provider; consumers bind against these contracts without redefining state vocabulary."
+        },
+        {
+          "seam_key": "status-summary-to-mobile-widget",
+          "event_or_interface": "StatusSummaryReadModel",
+          "producer_slice": "domain-runtime-foundation",
+          "consumer_slice": "push-mobile-widget-status",
+          "owner_slice": "domain-runtime-foundation",
+          "wiring": "Foundation-owned /api/status-summary route, controller, resource, auth policy, and harness fixture expose the nine-number summary and freshness contract consumed by the Expo app and WidgetKit extension."
+        },
+        {
+          "seam_key": "status-summary-to-web",
+          "event_or_interface": "StatusSummaryReadModel",
+          "producer_slice": "domain-runtime-foundation",
+          "consumer_slice": "web-dashboard-api-builder",
+          "owner_slice": "domain-runtime-foundation",
+          "wiring": "Foundation-owned /api/status-summary route, controller, resource, auth policy, and harness fixture expose the same nine-number summary to the Inertia React overview."
+        },
+        {
+          "seam_key": "monitor-domain-to-push",
+          "event_or_interface": "MonitorDomainContracts",
+          "producer_slice": "domain-runtime-foundation",
+          "consumer_slice": "push-mobile-widget-status",
+          "owner_slice": "domain-runtime-foundation",
+          "wiring": "Shared contracts package exports generated TypeScript/PHP schemas for status, severity, freshness, and monitor filters used by push/mobile without redefining enums."
+        },
+        {
+          "seam_key": "monitor-domain-to-agent",
+          "event_or_interface": "MonitorDomainContracts",
+          "producer_slice": "domain-runtime-foundation",
+          "consumer_slice": "agent-v2-expanded-monitors",
+          "owner_slice": "domain-runtime-foundation",
+          "wiring": "Shared PHP contracts and fake monitor identifiers are registered for agent ingest and evaluator jobs; the agent slice only implements producers."
+        },
+        {
+          "seam_key": "monitor-domain-to-web",
+          "event_or_interface": "MonitorDomainContracts",
+          "producer_slice": "domain-runtime-foundation",
+          "consumer_slice": "web-dashboard-api-builder",
+          "owner_slice": "domain-runtime-foundation",
+          "wiring": "Shared contracts package exports transition, incident, and secret-masking schemas for web routes and components."
+        },
+        {
+          "seam_key": "monitor-domain-to-sdk",
+          "event_or_interface": "CheckSyncPayloadContract",
+          "producer_slice": "domain-runtime-foundation",
+          "consumer_slice": "laravel-sdk-monitor-definitions",
+          "owner_slice": "domain-runtime-foundation",
+          "wiring": "Foundation contract package defines versioned check-sync payload schema and accepted monitor-type keys that the Laravel package serializes against."
+        },
+        {
+          "seam_key": "monitor-domain-to-ai",
+          "event_or_interface": "RedactionAndIncidentContracts",
+          "producer_slice": "domain-runtime-foundation",
+          "consumer_slice": "ai-incident-annotations",
+          "owner_slice": "domain-runtime-foundation",
+          "wiring": "Foundation redaction service and incident DTO contracts are registered as injectable interfaces for AI annotation jobs."
+        }
+      ]
+    }
+  ],
+  "delivery_slices": [
+    {
+      "slice_key": "alerting-reliability-core",
+      "title": "Trustworthy alerting state machine, grouping, maintenance, and watchdog",
+      "spec_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/spec.json",
+      "mandate": "Implement the PRD's trust-first alerting core: persisted healthy/degraded/down/recovering transitions, pull-check retry policy, pushed-metric hysteresis, state-transition-only notifications, 30s/5m incident grouping and recovery grouping, global/per-project maintenance mode extending the existing snooze path, deploy API tokens, expiry catch-up, and external heartbeat/watchdog scheduler ping. Own the monitor-result-to-transition queue/outbox wire and grouped notification intent creation; push channel delivery itself remains in the push slice. Verification expectations: feature tests for retries, hysteresis, grouping, maintenance expiry catch-up, watchdog pings, and no <30s deploy false alarms; component tests for alerting state/read components; and a full-runtime Playwright journey through the canonical harness with the queue worker running.",
+      "ownership": {
+        "files": [
+          "app/Domain/Alerting",
+          "app/Domain/Maintenance",
+          "app/Http/Controllers/MaintenanceModeController.php",
+          "app/Jobs/Alerting",
+          "app/Notifications/Alerting",
+          "app/Policies/MaintenanceModePolicy.php",
+          "database/migrations/2026_08_06_010000-2026_08_06_019999",
+          "routes/maintenance.php",
+          "tests/Feature/Alerting",
+          "tests/Feature/MaintenanceMode",
+          "tests/Unit/Alerting"
+        ],
+        "migration_timestamp_range": "2026_08_06_010000-2026_08_06_019999"
+      },
+      "contracts": [
+        {
+          "consumes": "MonitorDomainContracts",
+          "from": "domain-runtime-foundation",
+          "contract": "Uses shared monitor identity, state vocabulary, transition schema, outbox primitives, project token, and redaction contracts."
+        },
+        {
+          "provides": "MonitorResultIngestionInterface",
+          "to": [
+            "agent-v2-expanded-monitors"
+          ],
+          "contract": "Queue-safe interface accepting normalized monitor results/threshold breaches and applying retries or hysteresis before state transitions."
+        },
+        {
+          "provides": "NotificationIntentCreated",
+          "to": [
+            "push-mobile-widget-status"
+          ],
+          "contract": "Outbox event emitted once per grouped incident/recovery with severity, affected monitor identities, notification thread key, and problem-list deep link filter."
+        },
+        {
+          "provides": "IncidentTimelineReadModel",
+          "to": [
+            "web-dashboard-api-builder",
+            "ai-incident-annotations"
+          ],
+          "contract": "Read model of monitor state transitions, durations, group membership, maintenance suppressions, and incident annotations slots."
+        }
+      ],
+      "depends_on": [],
+      "owned_seams": [
+        {
+          "seam_key": "monitor-result-transition",
+          "event_or_interface": "MonitorResultIngestionInterface",
+          "producer_slice": "alerting-reliability-core",
+          "consumer_slice": "agent-v2-expanded-monitors",
+          "owner_slice": "alerting-reliability-core",
+          "wiring": "Alerting-owned queue job ProcessMonitorResult and outbox relay accept normalized result DTOs, apply retry/hysteresis rules, persist transitions, and expose a fake driver for producer slices."
+        }
+      ]
+    },
+    {
+      "slice_key": "push-mobile-widget-status",
+      "title": "Expo push, iOS widget, and mobile status loop",
+      "spec_path": ".full-send/canvas-runs/current/slices/push-mobile-widget-status/spec.json",
+      "mandate": "Ship the glanceability surface: Expo React Native app shell, device-token registration, PUSH notification channel mapping including Time Sensitive critical pushes and silent warn pushes, four-week dual-send reliability recording, iOS-only 3x3 WidgetKit extension reading /api/status-summary directly, stale-state rendering after 15 minutes, tap-to-filtered-problem-list deep links, and mobile loading/healthy/offline states. Own the NotificationIntentCreated-to-Expo queue listener and WidgetKit refresh wiring. Verification expectations: feature tests for device registration, push payload priority/sound/severity, reliability recording, and summary auth; component tests for mobile status states and widget stale/healthy/problem layouts; and a full-runtime Playwright journey through the canonical harness with the queue worker running.",
+      "ownership": {
+        "files": [
+          "app/Domain/Push",
+          "app/Http/Controllers/PushDeviceController.php",
+          "app/Jobs/Push",
+          "app/Notifications/Channels/ExpoPushChannel.php",
+          "database/migrations/2026_08_06_020000-2026_08_06_029999",
+          "mobile",
+          "routes/push.php",
+          "tests/Component/MobileStatus",
+          "tests/Feature/PushNotifications",
+          "tests/Unit/PushNotifications"
+        ],
+        "migration_timestamp_range": "2026_08_06_020000-2026_08_06_029999"
+      },
+      "contracts": [
+        {
+          "consumes": "MonitorDomainContracts",
+          "from": "domain-runtime-foundation",
+          "contract": "Uses shared severity, stale, monitor-filter, and status-summary schemas."
+        },
+        {
+          "consumes": "StatusSummaryReadModel",
+          "from": "domain-runtime-foundation",
+          "contract": "Widget and app consume /api/status-summary nine-number counts and freshness."
+        },
+        {
+          "consumes": "NotificationIntentCreated",
+          "from": "alerting-reliability-core",
+          "contract": "Sends grouped incident/recovery push notifications and updates widget freshness on accepted notification intents."
+        }
+      ],
+      "depends_on": [
+        "alerting-reliability-core"
+      ],
+      "owned_seams": [
+        {
+          "seam_key": "alerting-to-push-delivery",
+          "event_or_interface": "NotificationIntentCreated",
+          "producer_slice": "alerting-reliability-core",
+          "consumer_slice": "push-mobile-widget-status",
+          "owner_slice": "push-mobile-widget-status",
+          "wiring": "Push slice owns the queued NotificationIntentCreated listener, Expo Push Service client, retry/failure recording, and silent widget-refresh accelerator dispatch."
+        }
+      ]
+    },
+    {
+      "slice_key": "agent-v2-expanded-monitors",
+      "title": "Agent v2 and expanded monitor evaluators",
+      "spec_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/spec.json",
+      "mandate": "Deliver agent v2 and PRD phase-3 breadth: versioned stateful agent payloads, persisted network rx/tx deltas, log permission prerequisites, PHP-FPM worker/max_children parsing, nginx access/error log 5xx and timeout rules with misconfiguration state, server-side dead-man's switch, configurable link caps, fleet re-rollout documentation, domain-expiry lookup, and p95 response-time budget evaluator over stored check speeds. Agent evaluators emit normalized monitor results through the alerting ingestion interface. Verification expectations: feature tests for ingest validation, dead-man timing, threshold rules, missing access logs, domain expiry, and response-time budgets; component tests for any exposed prerequisite/status cards; and a full-runtime Playwright journey through the canonical harness with the queue worker running.",
+      "ownership": {
+        "files": [
+          "agent",
+          "app/Domain/Agent",
+          "app/Domain/ExpandedChecks",
+          "app/Http/Controllers/AgentReportController.php",
+          "app/Jobs/Agent",
+          "app/Jobs/ExpandedChecks",
+          "database/migrations/2026_08_06_030000-2026_08_06_039999",
+          "docs/agent-v2-rollout.md",
+          "routes/agent.php",
+          "tests/Feature/AgentV2",
+          "tests/Feature/ExpandedChecks",
+          "tests/Unit/AgentV2"
+        ],
+        "migration_timestamp_range": "2026_08_06_030000-2026_08_06_039999"
+      },
+      "contracts": [
+        {
+          "consumes": "MonitorDomainContracts",
+          "from": "domain-runtime-foundation",
+          "contract": "Uses shared monitor identities, misconfiguration state, severity levels, and sample DTOs."
+        },
+        {
+          "consumes": "MonitorResultIngestionInterface",
+          "from": "alerting-reliability-core",
+          "contract": "Evaluator jobs submit normalized threshold breaches/results for alerting retries, hysteresis, and state transitions."
+        },
+        {
+          "provides": "RedactedLogSnippetProvider",
+          "to": [
+            "ai-incident-annotations"
+          ],
+          "contract": "Opt-in source of already-filtered nginx/FPM/MySQL context lines for annotation, never alert creation."
+        }
+      ],
+      "depends_on": [
+        "alerting-reliability-core"
+      ],
+      "owned_seams": [
+        {
+          "seam_key": "agent-evaluators-to-alerting",
+          "event_or_interface": "MonitorResultIngestionInterface",
+          "producer_slice": "alerting-reliability-core",
+          "consumer_slice": "agent-v2-expanded-monitors",
+          "owner_slice": "agent-v2-expanded-monitors",
+          "wiring": "Agent slice owns scheduled evaluator commands and queue jobs that transform agent/domain/response samples into Alerting MonitorResult DTOs and dispatch them through the alerting fake or real queue worker."
+        }
+      ]
+    },
+    {
+      "slice_key": "web-dashboard-api-builder",
+      "title": "Inertia React dashboard, incident timelines, and API assertion builder",
+      "spec_path": ".full-send/canvas-runs/current/slices/web-dashboard-api-builder/spec.json",
+      "mandate": "Migrate the consumption surface from Filament to Inertia + React + shadcn/ui + Tailwind per PRD owner direction while leaving internal CRUD/admin on Filament if still present. Implement overview with the same nine numbers, filtered problem list, monitor incident timeline with durations/annotation slot, status-list maintenance banner, and API monitor assertion builder with live sample fetch, JSON-path picker, masked encrypted headers, and manual fallback on fetch/non-JSON/auth errors. Verification expectations: feature tests for web routes, sample fetch failures, masking, and timeline reads; component tests for overview/problem/timeline/builder states; and a full-runtime Playwright journey through the canonical harness with the queue worker running.",
+      "ownership": {
+        "files": [
+          "app/Domain/ApiMonitorBuilder",
+          "app/Http/Controllers/WebDashboard",
+          "app/Http/Controllers/ApiMonitorBuilderController.php",
+          "database/migrations/2026_08_06_040000-2026_08_06_049999",
+          "resources/css/checkybot-dashboard.css",
+          "resources/js/Components/CheckybotDashboard",
+          "resources/js/Pages/CheckybotDashboard",
+          "routes/web-dashboard.php",
+          "tests/Component/WebDashboard",
+          "tests/Feature/WebDashboard",
+          "tests/Unit/ApiMonitorBuilder"
+        ],
+        "migration_timestamp_range": "2026_08_06_040000-2026_08_06_049999"
+      },
+      "contracts": [
+        {
+          "consumes": "MonitorDomainContracts",
+          "from": "domain-runtime-foundation",
+          "contract": "Uses shared monitor, status, freshness, secret masking, and JSON schema contracts."
+        },
+        {
+          "consumes": "StatusSummaryReadModel",
+          "from": "domain-runtime-foundation",
+          "contract": "Overview renders the canonical nine-number summary and problem filters."
+        },
+        {
+          "consumes": "IncidentTimelineReadModel",
+          "from": "alerting-reliability-core",
+          "contract": "Monitor detail reads state transitions, durations, group membership, and annotation slots."
+        }
+      ],
+      "depends_on": [
+        "alerting-reliability-core"
+      ],
+      "owned_seams": [
+        {
+          "seam_key": "alerting-to-web-timeline",
+          "event_or_interface": "IncidentTimelineReadModel",
+          "producer_slice": "alerting-reliability-core",
+          "consumer_slice": "web-dashboard-api-builder",
+          "owner_slice": "web-dashboard-api-builder",
+          "wiring": "Web slice owns Inertia routes/controllers that bind to alerting read-model interfaces and provide harness seeders for Playwright timeline journeys."
+        }
+      ]
+    },
+    {
+      "slice_key": "laravel-sdk-monitor-definitions",
+      "title": "Laravel package monitor definition compatibility",
+      "spec_path": ".full-send/canvas-runs/current/slices/laravel-sdk-monitor-definitions/spec.json",
+      "mandate": "Adapt the existing Laravel package surface to the v1 product contracts without owning app runtime behavior: fluent/config payloads for response-time budgets, domain expiry, API assertion metadata, secure header/token masking expectations, compatible sync summaries, docs, facade docblocks, and backward-compatible tests around current uptime/SSL/API/link/OpenGraph definitions. Verification expectations: package feature tests for sync payloads and commands, component/contract tests for fluent builders and generated payload schemas, and a full-runtime Playwright journey through the canonical harness with the queue worker running.",
+      "ownership": {
+        "files": [
+          "src",
+          "config/checkybot-laravel.php",
+          "stubs",
+          "README.md",
+          "CHANGELOG.md",
+          "tests/Feature/FluentApiSyncTest.php",
+          "tests/Feature/SyncCommandTest.php",
+          "tests/Unit/CheckRegistryTest.php",
+          "tests/Unit/CheckybotClientTest.php",
+          "tests/Unit/ConfigValidatorTest.php",
+          "tests/Unit/Checks",
+          "tests/Unit/ConfigTest.php"
+        ],
+        "migration_timestamp_range": "none"
+      },
+      "contracts": [
+        {
+          "consumes": "CheckSyncPayloadContract",
+          "from": "domain-runtime-foundation",
+          "contract": "Serializes package-defined monitor definitions into the versioned Checkybot sync payload shape."
+        }
+      ],
+      "depends_on": [],
+      "owned_seams": [
+        {
+          "seam_key": "sdk-to-check-sync-contract",
+          "event_or_interface": "CheckSyncPayloadContract",
+          "producer_slice": "domain-runtime-foundation",
+          "consumer_slice": "laravel-sdk-monitor-definitions",
+          "owner_slice": "laravel-sdk-monitor-definitions",
+          "wiring": "SDK slice owns package serializers and command/client contract tests that prove emitted payloads match the foundation sync schema before hitting /api/v1/projects/{id}/checks/sync."
+        }
+      ]
+    }
+  ],
+  "polish_slices": [
+    {
+      "slice_key": "ai-incident-annotations",
+      "title": "Feature-flagged AI incident annotations",
+      "spec_path": ".full-send/canvas-runs/current/slices/ai-incident-annotations/spec.json",
+      "mandate": "Implement v1.5 opt-in AI annotation outside the alert path: budget-capped provider client, project-level flag, strict redaction before any log leaves the host, queue job that annotates existing incidents only after static rules fire, and UI/API annotation fields without creating alerts. Verification expectations: feature tests for opt-in, budget caps, redaction, no-alert creation, and queue processing; component tests for annotation-present/absent states; and a full-runtime Playwright journey through the canonical harness with the queue worker running.",
+      "ownership": {
+        "files": [
+          "app/Domain/AiAnnotations",
+          "app/Http/Controllers/AiAnnotationSettingsController.php",
+          "app/Jobs/AiAnnotations",
+          "config/ai-annotations.php",
+          "database/migrations/2026_08_06_900000-2026_08_06_909999",
+          "routes/ai-annotations.php",
+          "tests/Component/AiAnnotations",
+          "tests/Feature/AiAnnotations",
+          "tests/Unit/AiAnnotations"
+        ],
+        "migration_timestamp_range": "2026_08_06_900000-2026_08_06_909999"
+      },
+      "contracts": [
+        {
+          "consumes": "RedactionAndIncidentContracts",
+          "from": "domain-runtime-foundation",
+          "contract": "Uses shared redactor and incident DTOs; never bypasses secret/token masking."
+        },
+        {
+          "consumes": "IncidentTimelineReadModel",
+          "from": "alerting-reliability-core",
+          "contract": "Annotates existing incidents/transitions after static checks fire."
+        },
+        {
+          "consumes": "RedactedLogSnippetProvider",
+          "from": "agent-v2-expanded-monitors",
+          "contract": "Requests opt-in, already-filtered relevant log lines for probable-cause summaries."
+        }
+      ],
+      "owned_seams": [
+        {
+          "seam_key": "incident-ai-annotation",
+          "event_or_interface": "IncidentConfirmedForAnnotation",
+          "producer_slice": "alerting-reliability-core",
+          "consumer_slice": "ai-incident-annotations",
+          "owner_slice": "ai-incident-annotations",
+          "wiring": "AI slice owns an outbox-backed queued annotation job that claims eligible incident transition events, fetches redacted log snippets through the agent provider interface, enforces budget/flag checks, and writes annotation text back to the incident timeline."
+        },
+        {
+          "seam_key": "agent-logs-to-ai-annotation",
+          "event_or_interface": "RedactedLogSnippetProvider",
+          "producer_slice": "agent-v2-expanded-monitors",
+          "consumer_slice": "ai-incident-annotations",
+          "owner_slice": "ai-incident-annotations",
+          "wiring": "AI slice owns the adapter and tests that call the agent-owned redacted snippet provider only after an incident is confirmed and project AI annotations are enabled."
+        }
+      ]
+    },
+    {
+      "slice_key": "release-hardening",
+      "title": "Release hardening, proving period, and handover gates",
+      "spec_path": ".full-send/canvas-runs/current/slices/release-hardening/spec.json",
+      "mandate": "Polish the v1 handover gates: release checklist for zero false-alarm flood scenario, widget stale-green prevention, external watchdog proof, push/Telegram four-week dual-send criteria before retirement, fleet rollout readiness, operator docs, and canonical harness evidence collation. Verification expectations: feature tests for release gates where automatable, component checks for final surfaced empty/error/stale states, and a full-runtime Playwright journey through the canonical harness with the queue worker running before handover.",
+      "ownership": {
+        "files": [
+          "docs/release-hardening.md",
+          "docs/watchdog-and-push-retirement.md",
+          ".full-send/canvas-runs/current/handover-checklists",
+          "tests/Feature/ReleaseHardening",
+          "tests/Component/ReleaseHardening"
+        ],
+        "migration_timestamp_range": "none"
+      },
+      "contracts": [],
+      "owned_seams": []
+    }
+  ],
+  "integration_seams": [
+    {
+      "seam_key": "monitor-domain-contracts",
+      "event_or_interface": "MonitorDomainContracts",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "alerting-reliability-core",
+      "owner_slice": "domain-runtime-foundation",
+      "wiring": "Autoloaded foundation DTOs, interfaces, migrations, API resources, and fake implementations are registered by the foundation module provider; consumers bind against these contracts without redefining state vocabulary."
+    },
+    {
+      "seam_key": "status-summary-to-mobile-widget",
+      "event_or_interface": "StatusSummaryReadModel",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "push-mobile-widget-status",
+      "owner_slice": "domain-runtime-foundation",
+      "wiring": "Foundation-owned /api/status-summary route, controller, resource, auth policy, and harness fixture expose the nine-number summary and freshness contract consumed by the Expo app and WidgetKit extension."
+    },
+    {
+      "seam_key": "status-summary-to-web",
+      "event_or_interface": "StatusSummaryReadModel",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "web-dashboard-api-builder",
+      "owner_slice": "domain-runtime-foundation",
+      "wiring": "Foundation-owned /api/status-summary route, controller, resource, auth policy, and harness fixture expose the same nine-number summary to the Inertia React overview."
+    },
+    {
+      "seam_key": "monitor-domain-to-push",
+      "event_or_interface": "MonitorDomainContracts",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "push-mobile-widget-status",
+      "owner_slice": "domain-runtime-foundation",
+      "wiring": "Shared contracts package exports generated TypeScript/PHP schemas for status, severity, freshness, and monitor filters used by push/mobile without redefining enums."
+    },
+    {
+      "seam_key": "monitor-domain-to-agent",
+      "event_or_interface": "MonitorDomainContracts",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "agent-v2-expanded-monitors",
+      "owner_slice": "domain-runtime-foundation",
+      "wiring": "Shared PHP contracts and fake monitor identifiers are registered for agent ingest and evaluator jobs; the agent slice only implements producers."
+    },
+    {
+      "seam_key": "monitor-domain-to-web",
+      "event_or_interface": "MonitorDomainContracts",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "web-dashboard-api-builder",
+      "owner_slice": "domain-runtime-foundation",
+      "wiring": "Shared contracts package exports transition, incident, and secret-masking schemas for web routes and components."
+    },
+    {
+      "seam_key": "monitor-domain-to-sdk",
+      "event_or_interface": "CheckSyncPayloadContract",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "laravel-sdk-monitor-definitions",
+      "owner_slice": "domain-runtime-foundation",
+      "wiring": "Foundation contract package defines versioned check-sync payload schema and accepted monitor-type keys that the Laravel package serializes against."
+    },
+    {
+      "seam_key": "monitor-domain-to-ai",
+      "event_or_interface": "RedactionAndIncidentContracts",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "ai-incident-annotations",
+      "owner_slice": "domain-runtime-foundation",
+      "wiring": "Foundation redaction service and incident DTO contracts are registered as injectable interfaces for AI annotation jobs."
+    },
+    {
+      "seam_key": "monitor-result-transition",
+      "event_or_interface": "MonitorResultIngestionInterface",
+      "producer_slice": "alerting-reliability-core",
+      "consumer_slice": "agent-v2-expanded-monitors",
+      "owner_slice": "alerting-reliability-core",
+      "wiring": "Alerting-owned queue job ProcessMonitorResult and outbox relay accept normalized result DTOs, apply retry/hysteresis rules, persist transitions, and expose a fake driver for producer slices."
+    },
+    {
+      "seam_key": "alerting-to-push-delivery",
+      "event_or_interface": "NotificationIntentCreated",
+      "producer_slice": "alerting-reliability-core",
+      "consumer_slice": "push-mobile-widget-status",
+      "owner_slice": "push-mobile-widget-status",
+      "wiring": "Push slice owns the queued NotificationIntentCreated listener, Expo Push Service client, retry/failure recording, and silent widget-refresh accelerator dispatch."
+    },
+    {
+      "seam_key": "agent-evaluators-to-alerting",
+      "event_or_interface": "MonitorResultIngestionInterface",
+      "producer_slice": "alerting-reliability-core",
+      "consumer_slice": "agent-v2-expanded-monitors",
+      "owner_slice": "agent-v2-expanded-monitors",
+      "wiring": "Agent slice owns scheduled evaluator commands and queue jobs that transform agent/domain/response samples into Alerting MonitorResult DTOs and dispatch them through the alerting fake or real queue worker."
+    },
+    {
+      "seam_key": "alerting-to-web-timeline",
+      "event_or_interface": "IncidentTimelineReadModel",
+      "producer_slice": "alerting-reliability-core",
+      "consumer_slice": "web-dashboard-api-builder",
+      "owner_slice": "web-dashboard-api-builder",
+      "wiring": "Web slice owns Inertia routes/controllers that bind to alerting read-model interfaces and provide harness seeders for Playwright timeline journeys."
+    },
+    {
+      "seam_key": "sdk-to-check-sync-contract",
+      "event_or_interface": "CheckSyncPayloadContract",
+      "producer_slice": "domain-runtime-foundation",
+      "consumer_slice": "laravel-sdk-monitor-definitions",
+      "owner_slice": "laravel-sdk-monitor-definitions",
+      "wiring": "SDK slice owns package serializers and command/client contract tests that prove emitted payloads match the foundation sync schema before hitting /api/v1/projects/{id}/checks/sync."
+    },
+    {
+      "seam_key": "incident-ai-annotation",
+      "event_or_interface": "IncidentConfirmedForAnnotation",
+      "producer_slice": "alerting-reliability-core",
+      "consumer_slice": "ai-incident-annotations",
+      "owner_slice": "ai-incident-annotations",
+      "wiring": "AI slice owns an outbox-backed queued annotation job that claims eligible incident transition events, fetches redacted log snippets through the agent provider interface, enforces budget/flag checks, and writes annotation text back to the incident timeline."
+    },
+    {
+      "seam_key": "agent-logs-to-ai-annotation",
+      "event_or_interface": "RedactedLogSnippetProvider",
+      "producer_slice": "agent-v2-expanded-monitors",
+      "consumer_slice": "ai-incident-annotations",
+      "owner_slice": "ai-incident-annotations",
+      "wiring": "AI slice owns the adapter and tests that call the agent-owned redacted snippet provider only after an incident is confirmed and project AI annotations are enabled."
+    }
+  ]
+}
+```
+
+Outcome: run_plan_proposed

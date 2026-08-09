@@ -1,0 +1,3 @@
+{"path":"/sample","authorization":null}
+{"path":"/sample","authorization":"[PRESENT]"}
+{"path":"/auth","authorization":"[PRESENT]"}

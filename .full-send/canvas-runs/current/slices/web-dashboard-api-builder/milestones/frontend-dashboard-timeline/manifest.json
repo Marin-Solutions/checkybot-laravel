@@ -1,0 +1,1 @@
+{"targets":["mobile"],"verification":[{"target":"mobile","cwd":".","commands":["npx tsc -p resources/js/tsconfig.json --noEmit","npx jest --config tests/Component/WebDashboard/jest.config.cjs --runInBand"]}],"artifacts":["test_results"]}

@@ -1,0 +1,1 @@
+{"targets":["mobile"],"verification":[{"target":"mobile","cwd":".","commands":["npm --prefix mobile run typecheck","npm --prefix mobile test -- --watch=false","npm --prefix mobile run widget:config:verify"]}],"artifacts":["test_results"]}

@@ -1,0 +1,30 @@
+{
+  "expo": {
+    "name": "Checkybot Status",
+    "slug": "checkybot-status",
+    "version": "1.0.0",
+    "scheme": "checkybot",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "plugins": [
+      "expo-router",
+      ["expo-secure-store", {"configureAndroidBackup": true}],
+      "expo-notifications",
+      ["./plugins/withStatusWidget", {"deploymentTarget": "17.0"}]
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "dev.checkybot.status"
+    },
+    "android": {
+      "package": "dev.checkybot.status"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

@@ -5,7 +5,11 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use MarinSolutions\CheckybotLaravel\CheckRegistry;
+use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Contracts\ContractValidator;
+use MarinSolutions\CheckybotLaravel\Exceptions\CheckybotSyncException;
 use MarinSolutions\CheckybotLaravel\Facades\Checkybot;
 use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
 
@@ -199,19 +203,232 @@ it('sends correct payload structure from fluent api', function () {
 
     $this->artisan('checkybot:sync')->assertExitCode(0);
 
-    expect($capturedPayload['uptime_checks'])->toHaveCount(1)
-        ->and($capturedPayload['uptime_checks'][0]['name'])->toBe('homepage')
-        ->and($capturedPayload['uptime_checks'][0]['max_redirects'])->toBe(5)
-        ->and($capturedPayload['ssl_checks'])->toHaveCount(1)
-        ->and($capturedPayload['api_checks'])->toHaveCount(1)
-        ->and($capturedPayload['api_checks'][0]['headers']['Authorization'])->toBe('Bearer secret')
-        ->and($capturedPayload['api_checks'][0]['assertions'])->toHaveCount(1)
-        ->and($capturedPayload['link_checks'])->toHaveCount(1)
-        ->and($capturedPayload['link_checks'][0]['max_depth'])->toBe(1)
-        ->and($capturedPayload['link_checks'][0]['exclude_paths'])->toBe(['/admin/*'])
-        ->and($capturedPayload['open_graph_checks'])->toHaveCount(1)
-        ->and($capturedPayload['open_graph_checks'][0]['required_tags'])->toBe(['og:title', 'og:image']);
+    expect($capturedPayload['contract_version'])->toBe('check-sync.v1')
+        ->and($capturedPayload['uptime'])->toHaveCount(1)
+        ->and($capturedPayload['uptime'][0]['name'])->toBe('homepage')
+        ->and($capturedPayload['uptime'][0]['max_redirects'])->toBe(5)
+        ->and($capturedPayload['ssl'])->toHaveCount(1)
+        ->and($capturedPayload['api'])->toHaveCount(1)
+        ->and($capturedPayload['api'][0]['headers']['Authorization'])->toBe('Bearer secret')
+        ->and($capturedPayload['api'][0]['assertions'])->toHaveCount(1)
+        ->and($capturedPayload['dead_links'])->toHaveCount(1)
+        ->and($capturedPayload['dead_links'][0]['max_depth'])->toBe(1)
+        ->and($capturedPayload['dead_links'][0]['exclude_paths'])->toBe(['/admin/*'])
+        ->and($capturedPayload['open_graph'])->toHaveCount(1)
+        ->and($capturedPayload['open_graph'][0]['required_tags'])->toBe(['og:title', 'og:image'])
+        ->and($capturedPayload['domain_expiry'])->toBeEmpty()
+        ->and($capturedPayload['response_time_budget'])->toBeEmpty();
 });
+
+it('keeps a fixed credential corpus only in the captured outbound HTTPS body', function (): void {
+    $secrets = [
+        'authorization-corpus-7f3d',
+        'bearer-corpus-91aa',
+        'cookie-corpus-245c',
+        'custom-header-corpus-c880',
+    ];
+    Log::spy();
+
+    $check = Checkybot::api('secret-probe')
+        ->url('https://example.com/private')
+        ->headers([
+            'Authorization' => $secrets[0],
+            'X-Bearer-Token' => $secrets[1],
+            'Cookie' => $secrets[2],
+            'X-Custom-Secret' => $secrets[3],
+        ])
+        ->everyMinute();
+
+    Artisan::call('checkybot:sync', ['--dry-run' => true]);
+    $dryRun = Artisan::output();
+
+    ob_start();
+    var_dump($check, app(CheckRegistry::class));
+    $debug = (string) ob_get_clean();
+    $safeSerialization = json_encode([$check, app(CheckRegistry::class)], JSON_THROW_ON_ERROR)
+        .serialize($check).serialize(app(CheckRegistry::class));
+    $snapshot = json_encode($check->toSafeArray(), JSON_THROW_ON_ERROR);
+    $integrationEvidence = json_encode(['name' => $check->getName(), 'contract_version' => 'check-sync.v1'], JSON_THROW_ON_ERROR);
+
+    $capturedBody = null;
+    $capturedUri = null;
+    $successMock = new MockHandler([
+        function ($request) use (&$capturedBody, &$capturedUri) {
+            $capturedBody = (string) $request->getBody();
+            $capturedUri = (string) $request->getUri();
+
+            return new Response(200, [], json_encode([
+                'message' => 'Success',
+                'summary' => ['api' => ['created' => 1, 'updated' => 0, 'deleted' => 0]],
+            ]));
+        },
+    ]);
+    $successStack = HandlerStack::create($successMock);
+    $this->app->instance(CheckybotClient::class, new CheckybotClient(
+        baseUrl: 'https://capture.example',
+        apiKey: 'non-corpus-api-key',
+        projectId: 'project',
+        client: new Client(['base_uri' => 'https://capture.example', 'handler' => $successStack]),
+    ));
+
+    Artisan::call('checkybot:sync');
+    $summary = Artisan::output();
+
+    $failureText = implode(' | ', $secrets);
+    $failureMock = new MockHandler([new Response(422, [], json_encode([
+        'message' => $failureText,
+        'errors' => ['api.0.headers' => [$failureText]],
+    ]))]);
+    $failingClient = new CheckybotClient(
+        baseUrl: 'https://capture.example',
+        apiKey: 'non-corpus-api-key',
+        projectId: 'project',
+        client: new Client(['base_uri' => 'https://capture.example', 'handler' => HandlerStack::create($failureMock)]),
+    );
+    $exceptionText = '';
+    try {
+        $failingClient->syncChecks(app(CheckRegistry::class)->toArray());
+    } catch (CheckybotSyncException $exception) {
+        $exceptionText = $exception->getMessage();
+    }
+
+    foreach ($secrets as $secret) {
+        expect($capturedBody)->toContain($secret);
+        foreach ([$dryRun, $summary, $exceptionText, $debug, $safeSerialization, $snapshot, $integrationEvidence] as $surface) {
+            expect($surface)->not->toContain($secret);
+        }
+    }
+    expect($capturedUri)->toStartWith('https://capture.example/');
+    Log::shouldHaveReceived('error')->withArgs(function (string $message, array $context) use ($secrets): bool {
+        $encoded = $message.json_encode($context);
+
+        return collect($secrets)->every(fn (string $secret): bool => ! str_contains($encoded, $secret));
+    })->once();
+})->group('AC-laravel-sdk-monitor-definitions-3');
+
+it('validates exact fluent and config HTTP bodies against the foundation contract', function (): void {
+    $registry = app(CheckRegistry::class);
+    $registry->flush();
+    config([
+        'checkybot-laravel.api_key' => 'contract-key',
+        'checkybot-laravel.project_id' => 'contract-project',
+    ]);
+
+    Checkybot::uptime('up')->url('https://example.com/up')->everyMinute()->maxRedirects(4)->headers(['Accept' => 'text/html']);
+    Checkybot::ssl('ssl')->url('https://example.com/ssl')->daily();
+    Checkybot::api('api')->url('https://example.com/api')->everyFiveMinutes()
+        ->headers(['Accept' => 'application/json'])->expectStatus(200)->maxLatency(750)->retries(2)
+        ->expect('status')->toEqual('healthy');
+    Checkybot::links('links')->url('https://example.com/links')->daily()->maxDepth(2)
+        ->exclude(['/private/*'])->headers(['Accept' => 'text/html']);
+    Checkybot::openGraph('og')->url('https://example.com/og')->hourly()
+        ->requireTags(['og:title'])->headers(['Accept' => 'text/html']);
+    Checkybot::domainExpiry('domain')->url('https://example.com')->daily()->warnDays(45);
+    Checkybot::responseTimeBudget('budget')->url('https://example.com')->everyFiveMinutes()->percentile(95)->budgetMs(1800);
+
+    $capture = function () use (&$capturedBody): CheckybotClient {
+        $mock = new MockHandler([
+            function ($request) use (&$capturedBody) {
+                $capturedBody = json_decode((string) $request->getBody(), true);
+
+                return new Response(200, [], json_encode(['message' => 'ok', 'summary' => []], JSON_THROW_ON_ERROR));
+            },
+        ]);
+
+        return new CheckybotClient(
+            baseUrl: 'https://checkybot.example',
+            apiKey: 'contract-key',
+            projectId: 'contract-project',
+            retryDelay: 0,
+            client: new Client(['handler' => HandlerStack::create($mock)]),
+        );
+    };
+
+    $capturedBody = null;
+    $this->app->instance(CheckybotClient::class, $capture());
+    expect(Artisan::call('checkybot:sync'))->toBe(0);
+    $fluentBody = $capturedBody;
+
+    $registry->flush();
+    config(['checkybot-laravel.checks' => [
+        'uptime' => [[
+            'name' => 'up', 'url' => 'https://example.com/up', 'interval' => '1m',
+            'max_redirects' => 4, 'headers' => ['Accept' => 'text/html'],
+        ]],
+        'ssl' => [['name' => 'ssl', 'url' => 'https://example.com/ssl', 'interval' => '1d']],
+        'api' => [[
+            'name' => 'api', 'url' => 'https://example.com/api', 'interval' => '5m',
+            'headers' => ['Accept' => 'application/json'], 'expected_status' => 200,
+            'max_latency_ms' => 750, 'retry_count' => 2,
+            'assertions' => [['kind' => 'json_path', 'operator' => 'equals', 'path' => 'status', 'operand' => 'healthy']],
+        ]],
+        'dead_links' => [[
+            'name' => 'links', 'url' => 'https://example.com/links', 'interval' => '1d',
+            'max_depth' => 2, 'exclude_paths' => ['/private/*'], 'headers' => ['Accept' => 'text/html'],
+        ]],
+        'open_graph' => [[
+            'name' => 'og', 'url' => 'https://example.com/og', 'interval' => '1h',
+            'required_tags' => ['og:title'], 'headers' => ['Accept' => 'text/html'],
+        ]],
+        'domain_expiry' => [[
+            'name' => 'domain', 'url' => 'https://example.com', 'interval' => '1d', 'warn_days' => 45,
+        ]],
+        'response_time_budget' => [[
+            'name' => 'budget', 'url' => 'https://example.com', 'interval' => '5m',
+            'percentile' => 95, 'budget_ms' => 1800,
+        ]],
+    ]]);
+
+    $capturedBody = null;
+    $this->app->instance(CheckybotClient::class, $capture());
+    expect(Artisan::call('checkybot:sync'))->toBe(0);
+    $configBody = $capturedBody;
+
+    expect($fluentBody)->toBe($configBody)
+        ->and(array_keys($fluentBody))->toBe([
+            'contract_version', 'uptime', 'ssl', 'api', 'dead_links', 'open_graph',
+            'domain_expiry', 'response_time_budget',
+        ])
+        ->and($fluentBody['api'][0])->toMatchArray([
+            'expected_status' => 200, 'max_latency_ms' => 750, 'retry_count' => 2,
+        ])
+        ->and($fluentBody['api'][0]['assertions'])->toBe([
+            ['kind' => 'status', 'operator' => 'equals', 'operand' => 200, 'sort_order' => 1, 'is_active' => true],
+            ['kind' => 'latency', 'operator' => 'less_than_or_equal', 'operand' => 750, 'sort_order' => 2, 'is_active' => true],
+            ['kind' => 'json_path', 'operator' => 'equals', 'path' => 'status', 'operand' => 'healthy', 'sort_order' => 3, 'is_active' => true],
+        ]);
+
+    $contract = app(ContractValidator::class);
+    expect($contract->validateCheckSync($fluentBody))->toBe($fluentBody)
+        ->and($contract->validateCheckSync($configBody))->toBe($configBody);
+})->group('AC-laravel-sdk-monitor-definitions-9');
+
+it('rejects malformed package bodies at the foundation contract boundary', function (): void {
+    $valid = app(CheckRegistry::class)->flush()->toArray();
+    $contract = app(ContractValidator::class);
+    $cases = [];
+
+    $missing = $valid;
+    unset($missing['domain_expiry']);
+    $cases[] = $missing;
+    $missingBothNewArrays = $valid;
+    unset($missingBothNewArrays['domain_expiry'], $missingBothNewArrays['response_time_budget']);
+    $cases[] = $missingBothNewArrays;
+    $cases[] = [...$valid, 'contract_version' => 'check-sync.v999'];
+    $cases[] = [...$valid, 'uptime' => [['name' => 'bad', 'url' => 'not-a-url', 'interval' => 'never']]];
+    $cases[] = [...$valid, 'package_debug' => true];
+
+    foreach ($cases as $payload) {
+        expect(fn () => $contract->validateCheckSync($payload))->toThrow(ValidationException::class);
+    }
+
+    $this->postJson('/__harness/monitor-foundation/events', [
+        'operation_id' => '33333333-3333-4333-8333-333333333333',
+        'event_type' => 'contract.check_sync.probed',
+        'payload' => $missingBothNewArrays,
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors(['domain_expiry', 'response_time_budget']);
+})->group('AC-laravel-sdk-monitor-definitions-9');
 
 it('falls back to config when no fluent checks defined', function () {
     // Only config, no fluent API

@@ -1,0 +1,52 @@
+[2026-08-07 21:35:07] production.ERROR: Uncaught Exception: The /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/scripts/harness/bootstrap/cache directory must be present and writable. in /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php:179
+Stack trace:
+#0 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(132): Illuminate\Foundation\PackageManifest->write()
+#1 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(108): Illuminate\Foundation\PackageManifest->build()
+#2 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(90): Illuminate\Foundation\PackageManifest->getManifest()
+#3 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(79): Illuminate\Foundation\PackageManifest->config()
+#4 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/RegisterFacades.php(26): Illuminate\Foundation\PackageManifest->aliases()
+#5 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(349): Illuminate\Foundation\Bootstrap\RegisterFacades->bootstrap()
+#6 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(494): Illuminate\Foundation\Application->bootstrapWith()
+#7 Command line code(1): Illuminate\Foundation\Console\Kernel->bootstrap()
+#8 {main}
+  thrown {"exception":"[object] (Symfony\\Component\\ErrorHandler\\Error\\FatalError(code: 0): Uncaught Exception: The /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/scripts/harness/bootstrap/cache directory must be present and writable. in /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php:179
+Stack trace:
+#0 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(132): Illuminate\\Foundation\\PackageManifest->write()
+#1 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(108): Illuminate\\Foundation\\PackageManifest->build()
+#2 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(90): Illuminate\\Foundation\\PackageManifest->getManifest()
+#3 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(79): Illuminate\\Foundation\\PackageManifest->config()
+#4 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/RegisterFacades.php(26): Illuminate\\Foundation\\PackageManifest->aliases()
+#5 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(349): Illuminate\\Foundation\\Bootstrap\\RegisterFacades->bootstrap()
+#6 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(494): Illuminate\\Foundation\\Application->bootstrapWith()
+#7 Command line code(1): Illuminate\\Foundation\\Console\\Kernel->bootstrap()
+#8 {main}
+  thrown at /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php:179)
+[stacktrace]
+#0 {main}
+"} 
+[2026-08-07 21:45:15] production.ERROR: Uncaught Exception: The /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/scripts/harness/bootstrap/cache directory must be present and writable. in /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php:179
+Stack trace:
+#0 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(132): Illuminate\Foundation\PackageManifest->write()
+#1 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(108): Illuminate\Foundation\PackageManifest->build()
+#2 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(90): Illuminate\Foundation\PackageManifest->getManifest()
+#3 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(79): Illuminate\Foundation\PackageManifest->config()
+#4 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/RegisterFacades.php(26): Illuminate\Foundation\PackageManifest->aliases()
+#5 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(349): Illuminate\Foundation\Bootstrap\RegisterFacades->bootstrap()
+#6 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(494): Illuminate\Foundation\Application->bootstrapWith()
+#7 Command line code(1): Illuminate\Foundation\Console\Kernel->bootstrap()
+#8 {main}
+  thrown {"exception":"[object] (Symfony\\Component\\ErrorHandler\\Error\\FatalError(code: 0): Uncaught Exception: The /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/scripts/harness/bootstrap/cache directory must be present and writable. in /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php:179
+Stack trace:
+#0 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(132): Illuminate\\Foundation\\PackageManifest->write()
+#1 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(108): Illuminate\\Foundation\\PackageManifest->build()
+#2 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(90): Illuminate\\Foundation\\PackageManifest->getManifest()
+#3 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php(79): Illuminate\\Foundation\\PackageManifest->config()
+#4 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/Bootstrap/RegisterFacades.php(26): Illuminate\\Foundation\\PackageManifest->aliases()
+#5 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(349): Illuminate\\Foundation\\Bootstrap\\RegisterFacades->bootstrap()
+#6 /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/Console/Kernel.php(494): Illuminate\\Foundation\\Application->bootstrapWith()
+#7 Command line code(1): Illuminate\\Foundation\\Console\\Kernel->bootstrap()
+#8 {main}
+  thrown at /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/vendor/laravel/framework/src/Illuminate/Foundation/PackageManifest.php:179)
+[stacktrace]
+#0 {main}
+"} 

@@ -1,0 +1,21 @@
+{
+  "runtime_id": "510ed7dd-f541-4af1-8de9-5079bc9e6c0a",
+  "queue_worker": "database queue worker",
+  "alerting_operations": [
+    "e83bc255-51e0-4ddd-bfc9-ba8733beb797",
+    "43c16b22-e038-4554-8071-d084af5d560d",
+    "7b8eb53f-ca6d-4783-826b-c43c7ff51a90"
+  ],
+  "project_uuid": "4e7ce82c-9db9-48a6-b312-c149fb62f707",
+  "down_monitor_uuid": "c0a53522-642e-4760-a7cd-42ca75c6ded9",
+  "api_monitor_uuid": "19955890-6a3a-43af-ad74-0fd568eff488",
+  "checked": [
+    "overview",
+    "problem",
+    "detail",
+    "maintenance",
+    "sample",
+    "masked-preserve-save",
+    "upstream-auth-fallback"
+  ]
+}

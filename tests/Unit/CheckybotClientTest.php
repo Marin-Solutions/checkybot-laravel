@@ -11,6 +11,20 @@ use Illuminate\Support\Facades\Log;
 use MarinSolutions\CheckybotLaravel\Exceptions\CheckybotSyncException;
 use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
 
+function sdkCanonicalSyncPayload(): array
+{
+    return [
+        'contract_version' => 'check-sync.v1',
+        'uptime' => [['name' => 'up', 'url' => 'https://example.com', 'interval' => '1m', 'max_redirects' => 3]],
+        'ssl' => [['name' => 'ssl', 'url' => 'https://example.com', 'interval' => '1d']],
+        'api' => [['name' => 'api', 'url' => 'https://example.com/api', 'interval' => '5m']],
+        'dead_links' => [['name' => 'links', 'url' => 'https://example.com', 'interval' => '1d']],
+        'open_graph' => [['name' => 'og', 'url' => 'https://example.com', 'interval' => '1h']],
+        'domain_expiry' => [['name' => 'domain', 'url' => 'https://example.com', 'interval' => '1d', 'warn_days' => 30]],
+        'response_time_budget' => [['name' => 'budget', 'url' => 'https://example.com', 'interval' => '5m', 'percentile' => 95, 'budget_ms' => 2000]],
+    ];
+}
+
 it('sends sync request to correct endpoint', function () {
     $mock = new MockHandler([
         new Response(200, [], json_encode([
@@ -597,6 +611,126 @@ it('sends authorization header with bearer token', function () {
 
     expect($authHeader)->toBe('Bearer my-secret-api-key');
 });
+
+it('posts one authenticated canonical v1 body to the encoded project route', function (): void {
+    $history = [];
+    $stack = HandlerStack::create(new MockHandler([
+        new Response(200, [], json_encode(['message' => 'ok', 'summary' => []], JSON_THROW_ON_ERROR)),
+    ]));
+    $stack->push(Middleware::history($history));
+    $payload = sdkCanonicalSyncPayload();
+
+    $client = new CheckybotClient(
+        baseUrl: 'https://checkybot.example',
+        apiKey: 'transport-key',
+        projectId: 'project / opaque',
+        retryDelay: 0,
+        client: new Client(['base_uri' => 'https://checkybot.example', 'handler' => $stack]),
+    );
+
+    expect($client->syncChecks($payload)['message'])->toBe('ok')
+        ->and($history)->toHaveCount(1);
+
+    $request = $history[0]['request'];
+    expect($request->getMethod())->toBe('POST')
+        ->and((string) $request->getUri())->toBe('https://checkybot.example/api/v1/projects/project%20%2F%20opaque/checks/sync')
+        ->and($request->getHeaderLine('Accept'))->toBe('application/json')
+        ->and($request->getHeaderLine('Content-Type'))->toStartWith('application/json')
+        ->and($request->getHeaderLine('Authorization'))->toBe('Bearer transport-key')
+        ->and(json_decode((string) $request->getBody(), true))->toBe($payload)
+        ->and(array_keys($payload))->toBe([
+            'contract_version', 'uptime', 'ssl', 'api', 'dead_links', 'open_graph',
+            'domain_expiry', 'response_time_budget',
+        ]);
+})->group('AC-laravel-sdk-monitor-definitions-6');
+
+it('accepts the canonical loopback 202 response', function (): void {
+    $response = [
+        'status' => 'queued',
+        'event_type' => 'contract.check_sync.probed',
+        'operation_id' => '11111111-1111-4111-8111-111111111111',
+    ];
+    $client = new CheckybotClient(
+        baseUrl: 'http://127.0.0.1:8787',
+        apiKey: 'harness-key',
+        projectId: 'project',
+        retryDelay: 0,
+        client: new Client(['handler' => HandlerStack::create(new MockHandler([
+            new Response(202, [], json_encode($response, JSON_THROW_ON_ERROR)),
+        ]))]),
+    );
+
+    expect($client->syncChecks(sdkCanonicalSyncPayload()))->toBe($response);
+})->group('AC-laravel-sdk-monitor-definitions-6');
+
+it('maps declared downstream failures to bounded redacted sync exceptions', function (int $status): void {
+    Log::spy();
+    $secret = 'downstream-secret-corpus';
+    $client = new CheckybotClient(
+        baseUrl: 'https://checkybot.example',
+        apiKey: 'api-'.$secret,
+        projectId: 'project',
+        retryTimes: 0,
+        retryDelay: 0,
+        client: new Client(['handler' => HandlerStack::create(new MockHandler([
+            new Response($status, [], json_encode([
+                'message' => "Rejected api-{$secret}",
+                'errors' => ['api.0.headers.Authorization' => ["Bearer {$secret}"]],
+            ], JSON_THROW_ON_ERROR)),
+        ]))]),
+    );
+    $payload = sdkCanonicalSyncPayload();
+    $payload['api'][0]['headers'] = ['Authorization' => 'Bearer '.$secret];
+
+    try {
+        $client->syncChecks($payload);
+        $this->fail('Expected CheckybotSyncException.');
+    } catch (CheckybotSyncException $exception) {
+        expect($exception->getCode())->toBe($status)
+            ->and(strlen($exception->getMessage()))->toBeLessThanOrEqual(501)
+            ->and($exception->getMessage())->not->toContain($secret);
+    }
+
+    Log::shouldHaveReceived('error')->withArgs(fn (string $message, array $context): bool => ! str_contains($message.json_encode($context), $secret)
+    )->once();
+})->with([401, 403, 422])->group('AC-laravel-sdk-monitor-definitions-6');
+
+it('redacts transport exception request and payload secrets from exceptions and logs', function (): void {
+    Log::spy();
+    $secret = 'network-secret-corpus';
+    $payload = sdkCanonicalSyncPayload();
+    $payload['api'][0]['headers'] = ['Cookie' => 'session='.$secret];
+    $request = new Request('POST', 'https://checkybot.example/sync', [
+        'Authorization' => 'Bearer api-'.$secret,
+        'Cookie' => 'session='.$secret,
+    ], json_encode($payload, JSON_THROW_ON_ERROR));
+    $client = new CheckybotClient(
+        baseUrl: 'https://checkybot.example',
+        apiKey: 'api-'.$secret,
+        projectId: 'project',
+        retryTimes: 0,
+        retryDelay: 0,
+        client: new Client(['handler' => HandlerStack::create(new MockHandler([
+            new RequestException("transport failed for {$secret}", $request),
+        ]))]),
+    );
+
+    try {
+        $client->syncChecks($payload);
+        $this->fail('Expected CheckybotSyncException.');
+    } catch (CheckybotSyncException $exception) {
+        expect($exception->getMessage())->not->toContain($secret)
+            ->and($exception->getPrevious())->toBeNull();
+    }
+
+    Log::shouldHaveReceived('error')->withArgs(fn (string $message, array $context): bool => ! str_contains($message.json_encode($context), $secret)
+    )->once();
+})->group('AC-laravel-sdk-monitor-definitions-6');
+
+it('rejects non-HTTPS production transports except the testing loopback seam', function (): void {
+    expect(fn () => new CheckybotClient('http://checkybot.example', 'key', 'project'))
+        ->toThrow(InvalidArgumentException::class, 'requires an HTTPS base URL');
+})->group('AC-laravel-sdk-monitor-definitions-6');
 
 it('sends request to correct url with project id', function () {
     $requestUri = null;

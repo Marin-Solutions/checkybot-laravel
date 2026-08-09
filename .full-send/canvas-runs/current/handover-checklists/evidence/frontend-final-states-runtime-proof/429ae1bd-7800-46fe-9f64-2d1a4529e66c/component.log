@@ -1,0 +1,10 @@
+[2026-08-08T00:17:49.133Z] $ /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/node_modules/.bin/jest --config tests/Component/ReleaseHardening/jest.config.cjs --runInBand --ci
+PASS tests/Component/ReleaseHardening/StatusSurfaceStates.test.tsx
+PASS tests/Component/ReleaseHardening/WidgetFreshnessFailClosed.test.ts
+
+Test Suites: 2 passed, 2 total
+Tests:       12 passed, 12 total
+Snapshots:   0 total
+Time:        0.963 s, estimated 1 s
+Ran all test suites.
+[2026-08-08T00:17:51.256Z] exit=0

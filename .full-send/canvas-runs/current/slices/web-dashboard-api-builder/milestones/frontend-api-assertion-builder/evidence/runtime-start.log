@@ -1,0 +1,116 @@
+Initialized /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/build/web-dashboard-api-runtime/285effa1-c228-4ece-9ed2-026ae34876cc/database.sqlite
+[stage=database-config] printing effective database configuration before migration
+
+  database ...................................................................  
+  default ............................................................. sqlite  
+  connections ⇁ sqlite ⇁ driver ....................................... sqlite  
+  connections ⇁ sqlite ⇁ url ............................................ null  
+  connections ⇁ sqlite ⇁ database  /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/build/web-dashboard-api-runtime/285effa1-c228-4ece-9ed2-026ae34876cc/database.sqlite  
+  connections ⇁ sqlite ⇁ prefix ..............................................  
+  connections ⇁ sqlite ⇁ prefix_indexes ................................. null  
+  connections ⇁ sqlite ⇁ foreign_key_constraints ........................ true  
+  connections ⇁ sqlite ⇁ busy_timeout ................................... null  
+  connections ⇁ sqlite ⇁ journal_mode ................................... null  
+  connections ⇁ sqlite ⇁ synchronous .................................... null  
+  connections ⇁ sqlite ⇁ transaction_mode ........................... DEFERRED  
+  connections ⇁ sqlite ⇁ pragmas .......................................... []  
+  connections ⇁ mysql ⇁ driver ......................................... mysql  
+  connections ⇁ mysql ⇁ url ............................................. null  
+  connections ⇁ mysql ⇁ host ....................................... 127.0.0.1  
+  connections ⇁ mysql ⇁ port ............................................ 3306  
+  connections ⇁ mysql ⇁ database  /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/build/web-dashboard-api-runtime/285effa1-c228-4ece-9ed2-026ae34876cc/database.sqlite  
+  connections ⇁ mysql ⇁ username ........................................ root  
+  connections ⇁ mysql ⇁ password .............................................  
+  connections ⇁ mysql ⇁ unix_socket ..........................................  
+  connections ⇁ mysql ⇁ charset ...................................... utf8mb4  
+  connections ⇁ mysql ⇁ collation ......................... utf8mb4_unicode_ci  
+  connections ⇁ mysql ⇁ prefix ...............................................  
+  connections ⇁ mysql ⇁ prefix_indexes .................................. true  
+  connections ⇁ mysql ⇁ strict .......................................... true  
+  connections ⇁ mysql ⇁ engine .......................................... null  
+  connections ⇁ mysql ⇁ options ........................................... []  
+  connections ⇁ mariadb ⇁ driver ..................................... mariadb  
+  connections ⇁ mariadb ⇁ url ........................................... null  
+  connections ⇁ mariadb ⇁ host ..................................... 127.0.0.1  
+  connections ⇁ mariadb ⇁ port .......................................... 3306  
+  connections ⇁ mariadb ⇁ database  /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/build/web-dashboard-api-runtime/285effa1-c228-4ece-9ed2-026ae34876cc/database.sqlite  
+  connections ⇁ mariadb ⇁ username ...................................... root  
+  connections ⇁ mariadb ⇁ password ...........................................  
+  connections ⇁ mariadb ⇁ unix_socket ........................................  
+  connections ⇁ mariadb ⇁ charset .................................... utf8mb4  
+  connections ⇁ mariadb ⇁ collation ....................... utf8mb4_unicode_ci  
+  connections ⇁ mariadb ⇁ prefix .............................................  
+  connections ⇁ mariadb ⇁ prefix_indexes ................................ true  
+  connections ⇁ mariadb ⇁ strict ........................................ true  
+  connections ⇁ mariadb ⇁ engine ........................................ null  
+  connections ⇁ mariadb ⇁ options ......................................... []  
+  connections ⇁ pgsql ⇁ driver ......................................... pgsql  
+  connections ⇁ pgsql ⇁ url ............................................. null  
+  connections ⇁ pgsql ⇁ host ....................................... 127.0.0.1  
+  connections ⇁ pgsql ⇁ port ............................................ 5432  
+  connections ⇁ pgsql ⇁ database  /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/build/web-dashboard-api-runtime/285effa1-c228-4ece-9ed2-026ae34876cc/database.sqlite  
+  connections ⇁ pgsql ⇁ username ........................................ root  
+  connections ⇁ pgsql ⇁ password .............................................  
+  connections ⇁ pgsql ⇁ charset ......................................... utf8  
+  connections ⇁ pgsql ⇁ prefix ...............................................  
+  connections ⇁ pgsql ⇁ prefix_indexes .................................. true  
+  connections ⇁ pgsql ⇁ search_path ................................... public  
+  connections ⇁ pgsql ⇁ sslmode ....................................... prefer  
+  connections ⇁ pgsql ⇁ pooled ......................................... false  
+  connections ⇁ pgsql ⇁ direct ............................................ []  
+  connections ⇁ sqlsrv ⇁ driver ....................................... sqlsrv  
+  connections ⇁ sqlsrv ⇁ url ............................................ null  
+  connections ⇁ sqlsrv ⇁ host ...................................... localhost  
+  connections ⇁ sqlsrv ⇁ port ........................................... 1433  
+  connections ⇁ sqlsrv ⇁ database  /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/build/web-dashboard-api-runtime/285effa1-c228-4ece-9ed2-026ae34876cc/database.sqlite  
+  connections ⇁ sqlsrv ⇁ username ....................................... root  
+  connections ⇁ sqlsrv ⇁ password ............................................  
+  connections ⇁ sqlsrv ⇁ charset ........................................ utf8  
+  connections ⇁ sqlsrv ⇁ prefix ..............................................  
+  connections ⇁ sqlsrv ⇁ prefix_indexes ................................. true  
+  migrations ⇁ table .............................................. migrations  
+  migrations ⇁ update_date_on_publish ................................... true  
+  redis ⇁ client .................................................... phpredis  
+  redis ⇁ options ⇁ cluster ............................................ redis  
+  redis ⇁ options ⇁ prefix ................................. laravel-database-  
+  redis ⇁ options ⇁ persistent ......................................... false  
+  redis ⇁ default ⇁ url ................................................. null  
+  redis ⇁ default ⇁ host ........................................... 127.0.0.1  
+  redis ⇁ default ⇁ username ............................................ null  
+  redis ⇁ default ⇁ password ............................................ null  
+  redis ⇁ default ⇁ port ................................................ 6379  
+  redis ⇁ default ⇁ database ............................................... 0  
+  redis ⇁ default ⇁ max_retries ............................................ 3  
+  redis ⇁ default ⇁ backoff_algorithm .................... decorrelated_jitter  
+  redis ⇁ default ⇁ backoff_base ......................................... 100  
+  redis ⇁ default ⇁ backoff_cap ......................................... 1000  
+  redis ⇁ cache ⇁ url ................................................... null  
+  redis ⇁ cache ⇁ host ............................................. 127.0.0.1  
+  redis ⇁ cache ⇁ username .............................................. null  
+  redis ⇁ cache ⇁ password .............................................. null  
+  redis ⇁ cache ⇁ port .................................................. 6379  
+  redis ⇁ cache ⇁ database ................................................. 1  
+  redis ⇁ cache ⇁ max_retries .............................................. 3  
+  redis ⇁ cache ⇁ backoff_algorithm ...................... decorrelated_jitter  
+  redis ⇁ cache ⇁ backoff_base ........................................... 100  
+  redis ⇁ cache ⇁ backoff_cap ........................................... 1000  
+
+
+   INFO  Preparing database.  
+
+  Creating migration table ...................................... 38.88ms DONE
+
+   INFO  Running migrations.  
+
+  2026_08_06_000000_create_monitor_foundation_tables ........... 627.02ms DONE
+  2026_08_06_010000_create_alerting_result_runtime_tables ...... 440.13ms DONE
+  2026_08_06_010100_create_alerting_incident_group_tables ...... 543.94ms DONE
+  2026_08_06_010200_create_maintenance_mode_tables ............. 147.56ms DONE
+  2026_08_06_020000_create_push_delivery_tables ................ 379.16ms DONE
+  2026_08_06_030000_create_agent_v2_report_runtime_tables ...... 392.11ms DONE
+  2026_08_06_031000_create_agent_monitor_evaluator_tables ...... 154.08ms DONE
+  2026_08_06_032000_create_expanded_website_check_tables ....... 232.38ms DONE
+  2026_08_06_040000_create_api_monitor_builder_tables .......... 212.64ms DONE
+
+Seeded runtime API monitor b5c34855-5c4a-4341-9186-1a0ec8fbaff9.
+[stage=start] backend=http://127.0.0.1:41835 frontend=http://127.0.0.1:41591 worker_pid=588865

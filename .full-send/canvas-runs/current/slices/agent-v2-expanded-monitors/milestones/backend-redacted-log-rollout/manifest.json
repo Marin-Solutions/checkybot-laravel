@@ -1,0 +1,1 @@
+{"targets":["backend"],"verification":[{"target":"backend","cwd":".","commands":["./vendor/bin/pest tests/Feature/AgentV2/RedactedLogSnippetProviderTest.php --compact","./vendor/bin/phpstan analyse --no-progress --memory-limit=1G","./vendor/bin/pest --compact"]}],"artifacts":["test_results","command_log","changed_files"]}

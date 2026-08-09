@@ -1,0 +1,10 @@
+{
+  "result": "passed",
+  "run_id": "91516bb0-efee-4f7f-9292-09ff20b5ae92",
+  "stopped_roles": [
+    "fixture",
+    "worker",
+    "app"
+  ],
+  "owned_children_alive": 0
+}

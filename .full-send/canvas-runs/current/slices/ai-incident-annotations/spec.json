@@ -1,0 +1,55 @@
+{
+  "slice_key": "ai-incident-annotations",
+  "title": "Feature-flagged AI incident annotations",
+  "spec_path": ".full-send/canvas-runs/current/slices/ai-incident-annotations/spec.json",
+  "mandate": "Implement v1.5 opt-in AI annotation outside the alert path: budget-capped provider client, project-level flag, strict redaction before any log leaves the host, queue job that annotates existing incidents only after static rules fire, and UI/API annotation fields without creating alerts. Verification expectations: feature tests for opt-in, budget caps, redaction, no-alert creation, and queue processing; component tests for annotation-present/absent states; and a full-runtime Playwright journey through the canonical harness with the queue worker running.",
+  "ownership": {
+    "files": [
+      "app/Domain/AiAnnotations",
+      "app/Http/Controllers/AiAnnotationSettingsController.php",
+      "app/Jobs/AiAnnotations",
+      "config/ai-annotations.php",
+      "database/migrations/2026_08_06_900000-2026_08_06_909999",
+      "routes/ai-annotations.php",
+      "tests/Component/AiAnnotations",
+      "tests/Feature/AiAnnotations",
+      "tests/Unit/AiAnnotations"
+    ],
+    "migration_timestamp_range": "2026_08_06_900000-2026_08_06_909999"
+  },
+  "contracts": [
+    {
+      "consumes": "RedactionAndIncidentContracts",
+      "from": "domain-runtime-foundation",
+      "contract": "Uses shared redactor and incident DTOs; never bypasses secret/token masking."
+    },
+    {
+      "consumes": "IncidentTimelineReadModel",
+      "from": "alerting-reliability-core",
+      "contract": "Annotates existing incidents/transitions after static checks fire."
+    },
+    {
+      "consumes": "RedactedLogSnippetProvider",
+      "from": "agent-v2-expanded-monitors",
+      "contract": "Requests opt-in, already-filtered relevant log lines for probable-cause summaries."
+    }
+  ],
+  "owned_seams": [
+    {
+      "seam_key": "incident-ai-annotation",
+      "event_or_interface": "IncidentConfirmedForAnnotation",
+      "producer_slice": "alerting-reliability-core",
+      "consumer_slice": "ai-incident-annotations",
+      "owner_slice": "ai-incident-annotations",
+      "wiring": "AI slice owns an outbox-backed queued annotation job that claims eligible incident transition events, fetches redacted log snippets through the agent provider interface, enforces budget/flag checks, and writes annotation text back to the incident timeline."
+    },
+    {
+      "seam_key": "agent-logs-to-ai-annotation",
+      "event_or_interface": "RedactedLogSnippetProvider",
+      "producer_slice": "agent-v2-expanded-monitors",
+      "consumer_slice": "ai-incident-annotations",
+      "owner_slice": "ai-incident-annotations",
+      "wiring": "AI slice owns the adapter and tests that call the agent-owned redacted snippet provider only after an incident is confirmed and project AI annotations are enabled."
+    }
+  ]
+}

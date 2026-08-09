@@ -1,0 +1,1 @@
+{"targets":["mobile"],"verification":[{"target":"mobile","cwd":".","commands":["npm ci --no-audit --no-fund","npm run harness:frontend:build","npm run harness:test:component","npm run harness:integration"]}],"artifacts":["test_results","criteria_evidence_map","browser_screenshot","browser_network_summary"]}

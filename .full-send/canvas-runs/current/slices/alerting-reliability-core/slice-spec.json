@@ -1,0 +1,419 @@
+{
+  "slice_key": "alerting-reliability-core",
+  "base_requirements": [
+    "Canvas slice mandate: persist trustworthy monitor lifecycle transitions, apply pull retries and pushed-metric hysteresis, notify only on confirmed state transitions, group incidents and recoveries, extend snoozing into maintenance mode, and ping an external watchdog",
+    "PRD 4.4: the Laravel scheduler pings an external heartbeat service every minute so host or queue failure is detected outside Checkybot",
+    "PRD 5.1-5.2: one persisted healthy/degraded/down/recovering state machine serves all monitor pipelines; pull failures retry after 10 and 30 seconds, pushed metrics use three-sample hysteresis, and raw results never notify",
+    "PRD 5.3: hold confirmed incidents for 30 seconds, coalesce related transitions for 5 minutes, and create at most one grouped incident intent plus one grouped recovery intent",
+    "PRD 5.4: global and per-project maintenance extend the existing snooze suppression path, use scoped rotatable deploy tokens, auto-expire, and catch up non-healthy monitors once on expiry",
+    "PRD 9: downtime shorter than 30 seconds creates zero notifications and each real incident creates no more than one incident notification plus one recovery notification",
+    "Inherited MonitorDomainContracts: use server|website|api identities, healthy|warn|down|recovering lifecycle states, warn|critical severities, project tokens, transition history, and transactional outbox primitives",
+    "Canvas integration requirement: feature and component tests plus a canonical full-runtime Playwright journey run through real HTTP, the registered outbox relay, and the real queue worker"
+  ],
+  "ownership": {
+    "files": [
+      "app/Domain/Alerting",
+      "app/Domain/Maintenance",
+      "app/Http/Controllers/MaintenanceModeController.php",
+      "app/Jobs/Alerting",
+      "app/Notifications/Alerting",
+      "app/Policies/MaintenanceModePolicy.php",
+      "database/migrations/2026_08_06_010000-2026_08_06_019999",
+      "routes/maintenance.php",
+      "tests/Feature/Alerting",
+      "tests/Feature/MaintenanceMode",
+      "tests/Unit/Alerting"
+    ],
+    "migration_timestamp_range": "2026_08_06_010000-2026_08_06_019999"
+  },
+  "api_contract": [
+    {
+      "route": "PHP MonitorResultIngestionInterface::ingest(NormalizedMonitorResult)",
+      "request": {
+        "operation_id": "UUID used for idempotency",
+        "identity": {
+          "project_uuid": "UUID",
+          "monitor_uuid": "UUID",
+          "type": "server|website|api"
+        },
+        "source": "pull|push",
+        "observed_at": "RFC3339 UTC datetime",
+        "signal": "success|failure for pull; healthy|warn|critical for push",
+        "reason_code": "bounded redacted string|null",
+        "value": "finite number required for push",
+        "thresholds": "push-only object with warn, critical, and recovery_delta; recovery_delta defaults to 5 percentage points",
+        "validation": "Identity and lifecycle values must satisfy MonitorDomainContracts. Pull results reject push thresholds. Push results require ordered finite thresholds and a non-negative recovery_delta. An operation_id may represent only one immutable result.",
+        "authorization": "Internal queue-safe application interface; callers receive the binding from the alerting module provider and cannot supply a project outside their normalized MonitorIdentity."
+      },
+      "response": {
+        "accepted": "boolean",
+        "operation_id": "UUID",
+        "status": "queued|duplicate",
+        "next_retry_at": "RFC3339 UTC datetime|null"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "OUTBOX NotificationIntentCreated",
+      "request": {
+        "contract_version": "notification-intent.v1",
+        "operation_id": "UUID unique to group and phase",
+        "intent_id": "UUID",
+        "phase": "incident|recovery",
+        "project_uuid": "UUID",
+        "group_id": "UUID",
+        "severity": "warn|critical",
+        "affected_monitors": "non-empty array of MonitorIdentity objects",
+        "notification_thread_key": "stable string shared by incident and recovery",
+        "problem_filter": {
+          "route": "problems",
+          "monitor_uuids": "non-empty unique UUID array"
+        },
+        "opened_at": "RFC3339 UTC datetime",
+        "emitted_at": "RFC3339 UTC datetime",
+        "downtime_seconds": "non-negative integer for recovery; null for incident",
+        "delivery": "Transactional outbox, at-least-once transport, and consumer deduplication by operation_id; push channel delivery is outside this slice."
+      },
+      "response": {
+        "consumer_ack": "queued|duplicate|processed",
+        "dedupe_key": "operation_id"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "PHP IncidentTimelineReadModel::forMonitor(AuthorizedMonitorIdentity)",
+      "request": {
+        "identity": {
+          "project_uuid": "UUID",
+          "monitor_uuid": "UUID",
+          "type": "server|website|api"
+        },
+        "authorization": "Caller must already be authorized for the identity's project; the query never accepts a different project override."
+      },
+      "response": {
+        "current_state": "healthy|warn|down|recovering",
+        "entered_at": "RFC3339 UTC datetime",
+        "transitions": [
+          {
+            "transition_id": "UUID",
+            "from": "healthy|warn|down|recovering|null",
+            "to": "healthy|warn|down|recovering",
+            "severity": "warn|critical|null",
+            "occurred_at": "RFC3339 UTC datetime",
+            "duration_seconds": "non-negative integer|null while open",
+            "reason_code": "redacted string|null",
+            "group_id": "UUID|null",
+            "maintenance_suppressed": "boolean"
+          }
+        ],
+        "incident_groups": [
+          {
+            "group_id": "UUID",
+            "opened_at": "RFC3339 UTC datetime",
+            "closed_at": "RFC3339 UTC datetime|null",
+            "notification_thread_key": "string",
+            "affected_monitors": "array of MonitorIdentity objects"
+          }
+        ],
+        "annotation_slots": "array of nullable, provider-neutral incident annotation slots"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "POST /api/v1/maintenance-modes",
+      "request": {
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer <ProjectApiToken> for deploy automation, or the existing authenticated operator guard"
+        },
+        "body": {
+          "operation_id": "UUID used for idempotency",
+          "scope": "project|global",
+          "project_uuid": "UUID|null; omitted for project tokens because their project is authoritative",
+          "duration_minutes": "integer from 1 through 1440",
+          "reason": "optional redacted string up to 200 characters"
+        },
+        "validation": "Project tokens may request only project scope, may not provide project_uuid, and require maintenance:write. Global scope requires an operator authorized by MaintenanceModePolicy. Only one active maintenance record per scope target is allowed; an idempotent replay returns the original record.",
+        "authorization": "Scoped, active, unexpired, unrevoked ProjectApiToken with maintenance:write for its own project, or an authenticated operator authorized for the requested project/global scope."
+      },
+      "response": {
+        "201": {
+          "data": {
+            "id": "UUID",
+            "scope": "project|global",
+            "project_uuid": "UUID|null",
+            "starts_at": "RFC3339 UTC datetime",
+            "ends_at": "RFC3339 UTC datetime",
+            "active": true
+          }
+        },
+        "200": "The same data shape for an idempotent replay",
+        "401": {
+          "message": "Unauthenticated."
+        },
+        "403": {
+          "message": "This token or operator cannot manage the requested maintenance scope."
+        },
+        "422": {
+          "message": "string",
+          "errors": "object keyed by invalid field"
+        },
+        "409": {
+          "message": "An active maintenance mode already exists for this scope."
+        }
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "GET /api/v1/maintenance-modes/current",
+      "request": {
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer <ProjectApiToken> with maintenance:read or existing authenticated operator guard"
+        },
+        "query": {
+          "project_uuid": "UUID accepted only for an operator; project tokens are fixed to their own project"
+        },
+        "authorization": "Caller must possess maintenance:read for the selected project or be an operator authorized for it."
+      },
+      "response": {
+        "200": {
+          "data": {
+            "silenced": "boolean",
+            "effective_scope": "project|global|null",
+            "maintenance_mode_id": "UUID|null",
+            "ends_at": "RFC3339 UTC datetime|null",
+            "reason": "redacted string|null"
+          }
+        },
+        "401": {
+          "message": "Unauthenticated."
+        },
+        "403": {
+          "message": "The caller cannot read maintenance state for this project."
+        }
+      },
+      "consumed_by": "frontend"
+    },
+    {
+      "route": "DELETE /api/v1/maintenance-modes/{maintenance_mode}",
+      "request": {
+        "path": {
+          "maintenance_mode": "UUID"
+        },
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer <ProjectApiToken> with maintenance:write or existing authenticated operator guard"
+        },
+        "authorization": "A project token may clear only its project's record; global records require a globally authorized operator."
+      },
+      "response": {
+        "204": "Maintenance ended and catch-up evaluation was queued once",
+        "401": {
+          "message": "Unauthenticated."
+        },
+        "403": {
+          "message": "The caller cannot clear this maintenance mode."
+        },
+        "404": {
+          "message": "Maintenance mode not found."
+        }
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "POST /__harness/alerting/results",
+      "request": {
+        "availability": "Canonical testing runtime only; absent in production and loopback-bound",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "body": "The exact NormalizedMonitorResult request contract",
+        "validation": "Invalid or contract-incompatible results return 422 before enqueueing.",
+        "authorization": "Harness-only loopback access; no user authentication."
+      },
+      "response": {
+        "202": {
+          "operation_id": "UUID",
+          "status": "queued"
+        },
+        "200": {
+          "operation_id": "UUID",
+          "status": "duplicate"
+        },
+        "422": {
+          "message": "string",
+          "errors": "object keyed by invalid field"
+        }
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "GET /__harness/alerting/receipts/{operation_id}",
+      "request": {
+        "availability": "Canonical testing runtime only; absent in production and loopback-bound",
+        "path": {
+          "operation_id": "UUID submitted through POST /__harness/alerting/results"
+        },
+        "authorization": "Harness-only loopback access; no user authentication."
+      },
+      "response": {
+        "200": {
+          "operation_id": "UUID",
+          "status": "queued|processed|failed",
+          "current_state": "healthy|warn|down|recovering|null",
+          "transitions": "array conforming to MonitorDomainContracts",
+          "scheduled_retries": "array of RFC3339 due times",
+          "incident_groups": "array of group summaries",
+          "notification_intents": "array conforming to NotificationIntentCreated",
+          "consumer_receipts": [
+            {
+              "consumer": "agent-v2-expanded-monitors",
+              "effect": "ingestion_contract_accepted|transition_persisted",
+              "processed_at": "RFC3339 UTC datetime"
+            }
+          ]
+        },
+        "404": {
+          "message": "Alerting operation not found."
+        }
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "GET {CHECKYBOT_WATCHDOG_URL} (outbound)",
+      "request": {
+        "schedule": "Every minute with overlap prevention",
+        "headers": {
+          "User-Agent": "Checkybot watchdog/<version>"
+        },
+        "body": "none",
+        "configuration": "HTTPS URL supplied through runtime environment/config; disabled when absent; URL credentials and query values are redacted from logs."
+      },
+      "response": {
+        "success": "Any 2xx response within the configured timeout records a successful heartbeat",
+        "failure": "Timeout, transport error, or non-2xx response records a redacted local failure and permits the next scheduled attempt; it never blocks other scheduler tasks"
+      },
+      "consumed_by": "backend"
+    }
+  ],
+  "backend_milestone_items": [
+    {
+      "milestone_key": "backend-result-state-runtime",
+      "title": "Queued result ingestion, retries, and hysteresis",
+      "spec_section_id": "backend-result-state-runtime",
+      "ledger_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-result-state-runtime/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-result-state-runtime/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-result-state-runtime/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-result-state-runtime/handoff.md",
+      "contract_excerpt": "Within inherited ownership, bind MonitorResultIngestionInterface to immutable normalized DTO validation and operation-id idempotency. Register the alerting-owned ProcessMonitorResult queue job, due-pull-retry command/scheduler entry, pull retry-request outbox handler, and testing-only loopback result/receipt routes. Use foundation MonitorState, MonitorTransition, ProjectApiToken, and outbox contracts rather than redefining them. Pull attempts are actual producer rechecks at +10s and +30s; never replay a stale failure as a retry. The first pull failure enters canonical warn (the foundation name for PRD degraded), the third actual failed attempt enters down, and pre-alarm success returns to healthy silently. Push counters remain pending until three consecutive samples confirm warn or critical; critical confirmation may persist healthy-to-warn and warn-to-down atomically, while recovery requires three consecutive samples at or below warn threshold minus recovery_delta. All writes and resulting outbox records are atomic and concurrency-safe.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-alerting-reliability-core-1",
+          "text": "Contract and queue tests prove MonitorResultIngestionInterface accepts valid pull and push DTOs, rejects source-incompatible or non-finite threshold data, queues one ProcessMonitorResult job per operation_id, and returns duplicate without a second state mutation when the identical operation is replayed."
+        },
+        {
+          "id": "AC-alerting-reliability-core-2",
+          "text": "Clock-controlled Pest tests prove an initial pull failure persists healthy-to-warn with no notification, actual producer rechecks are requested at +10 and +30 seconds, only the third actual consecutive failed attempt persists warn-to-down, and any successful recheck before the third failure returns the monitor to healthy with zero notification intents, including downtime shorter than 30 seconds."
+        },
+        {
+          "id": "AC-alerting-reliability-core-3",
+          "text": "Table-driven Pest tests prove pushed metrics require three consecutive samples in the same warn or critical band before the confirmed state is entered, require three consecutive samples at or below warn threshold minus the configured 5-point default before healthy, reset counters on an interrupting sample, and produce no down/recovery churn while values oscillate around a threshold."
+        },
+        {
+          "id": "AC-alerting-reliability-core-4",
+          "text": "Alerting state component tests prove every accepted operation leaves one project-isolated current state, immutable ordered transitions with entered_at and reason metadata, and an atomic outbox write when a confirmed transition occurs; concurrent processing cannot regress observed_at order or duplicate a transition."
+        },
+        {
+          "id": "AC-alerting-reliability-core-5",
+          "text": "A Pest end-to-end test proves the owned monitor-result-transition seam by posting normalized results through POST /__harness/alerting/results, executing the registered foundation outbox relay, running the real queue worker, and observing through GET /__harness/alerting/receipts/{operation_id} both the agent-v2-expanded-monitors fake-consumer receipt and the resulting persisted current state/transition, without invoking the processor, transition service, or consumer directly."
+        }
+      ]
+    },
+    {
+      "milestone_key": "backend-incident-grouping-read-model",
+      "title": "Grouped notification intents and incident timeline",
+      "spec_section_id": "backend-incident-grouping-read-model",
+      "ledger_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-incident-grouping-read-model/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-incident-grouping-read-model/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-incident-grouping-read-model/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-incident-grouping-read-model/handoff.md",
+      "contract_excerpt": "Within inherited ownership, persist project-scoped incident groups, membership, notification intents, and transition links in the assigned migration range. Register overlap-safe jobs/scheduler recovery for 30-second collection and 5-minute coalescing. Only confirmed down and fully confirmed recovery transitions create NotificationIntentCreated outbox events; warn, recovering, repeated raw results, and duplicate jobs do not. One incident intent is emitted after the initial 30-second hold; later confirmed downs within a sliding five-minute open-group window update the same logical group, intent, thread key, and live problem filter without creating another logical incident intent. Emit one recovery intent only when every group member is confirmed healthy. Provide IncidentTimelineReadModel with durations, group membership, maintenance suppression flags, and nullable annotation slots. Push transport is explicitly excluded. The canonical full-runtime Playwright harness may consume only the testing routes and runs with the real relay and queue worker; no product frontend belongs to this slice.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-alerting-reliability-core-6",
+          "text": "Clock-controlled feature tests prove the first confirmed down creates no intent before 30 seconds and exactly one incident NotificationIntentCreated after the collection deadline containing every same-project monitor confirmed down during that window, the maximum member severity, one stable thread key, and the matching problem-list monitor filter."
+        },
+        {
+          "id": "AC-alerting-reliability-core-7",
+          "text": "Feature tests prove confirmed downs arriving within five minutes of the group's latest accepted member update the same group, intent identity, thread key, and filter without creating a second logical incident intent, while a transition after the five-minute boundary creates a separate group and intent; duplicate deliveries leave both counts unchanged."
+        },
+        {
+          "id": "AC-alerting-reliability-core-8",
+          "text": "Feature tests prove partial or recovering members emit no recovery intent, and the final member's confirmed healthy transition emits exactly one grouped recovery NotificationIntentCreated with the original thread key, all affected identities, and downtime measured from first confirmed down through final confirmed healthy."
+        },
+        {
+          "id": "AC-alerting-reliability-core-9",
+          "text": "IncidentTimelineReadModel component tests prove an authorized monitor read returns current state, ordered transitions, open/final durations, incident group membership, maintenance_suppressed flags, and nullable annotation slots, while a different project's authorization context cannot read any row."
+        },
+        {
+          "id": "AC-alerting-reliability-core-10",
+          "text": "The canonical full-runtime Playwright journey posts real pull result attempts through the alerting harness API with the real queue worker running, executes the registered relay and grouping jobs, and observes through the real receipt API that a sub-30-second recovery has zero intents while a confirmed multi-monitor failure has one incident intent and one final recovery intent; the journey emits the required integration evidence and never calls a processor directly."
+        }
+      ]
+    },
+    {
+      "milestone_key": "backend-maintenance-deploy-api",
+      "title": "Scoped maintenance mode and expiry catch-up",
+      "spec_section_id": "backend-maintenance-deploy-api",
+      "ledger_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-maintenance-deploy-api/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-maintenance-deploy-api/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-maintenance-deploy-api/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-maintenance-deploy-api/handoff.md",
+      "contract_excerpt": "Within inherited ownership, add global and project maintenance records as adapters over the existing HasSnooze, isSilencedNow, and ProcessExpiredSnoozes path so there is one suppression decision. Implement thin MaintenanceModeController methods, MaintenanceModePolicy, routes, shared actions used by the API and checkybot:maintenance CLI, and a once-only expiry/cancel catch-up queue job plus overlap-safe scheduler entry. Reuse foundation hashed ProjectApiToken storage and require maintenance:read or maintenance:write; never store or log token plaintext. Project tokens derive project identity from the token and cannot request global scope. Transitions continue to persist while silenced, but notification intents are suppressed. Expiry or early clear atomically claims the record, re-evaluates current states, and creates at most one grouped catch-up incident intent per affected project for currently non-healthy monitors; healthy monitors and already-claimed expiries create none.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-alerting-reliability-core-11",
+          "text": "Maintenance API feature tests prove POST validates operation_id, 1-1440 duration_minutes, and scope; returns 401 for missing/invalid credentials, 403 for missing maintenance:write or any project-token global/cross-project request, 201 for an authorized creation, 200 for its idempotent replay, and 409 for a different overlapping active request."
+        },
+        {
+          "id": "AC-alerting-reliability-core-12",
+          "text": "Feature tests prove API and checkybot:maintenance CLI operations call the same action, per-project maintenance silences only that project, global maintenance silences every project, GET /api/v1/maintenance-modes/current returns the effective scope and ends_at, and DELETE enforces the same scope policy before returning 204."
+        },
+        {
+          "id": "AC-alerting-reliability-core-13",
+          "text": "Clock-controlled feature tests prove confirmed state transitions and timeline suppression flags continue to persist during maintenance while incident and recovery notification intents remain zero through the single existing snooze/isSilencedNow suppression path."
+        },
+        {
+          "id": "AC-alerting-reliability-core-14",
+          "text": "Expiry and early-clear feature tests prove the registered catch-up job re-evaluates current persisted state and emits exactly one grouped incident intent per affected project containing every currently non-healthy monitor, emits none when all are healthy, and remains idempotent under duplicate jobs and concurrent expiry claims."
+        },
+        {
+          "id": "AC-alerting-reliability-core-15",
+          "text": "Token and scheduler tests prove maintenance deploy tokens are stored only as foundation hashes, maintenance:read and maintenance:write are independently enforced after expiry/revocation/rotation, and the overlap-safe expiry scheduler catches records missed while the scheduler or queue was unavailable without processing an active record early."
+        }
+      ]
+    },
+    {
+      "milestone_key": "backend-external-watchdog",
+      "title": "External heartbeat watchdog",
+      "spec_section_id": "backend-external-watchdog",
+      "ledger_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-external-watchdog/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-external-watchdog/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-external-watchdog/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-external-watchdog/handoff.md",
+      "contract_excerpt": "Within inherited ownership, provide alerting-local watchdog configuration, an injectable heartbeat client, a command/job, deterministic HTTP fakes, and an every-minute overlap-safe scheduler registration. A configured HTTPS heartbeat URL receives a bounded-timeout GET from the Checkybot host; any 2xx is success. Missing configuration disables dispatch explicitly. Timeout, transport, and non-2xx failures retain redacted diagnostics, do not block other scheduled work, and permit the next minute's ping. The external service owns escalation; this slice does not route watchdog alerts through Checkybot or push.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-alerting-reliability-core-16",
+          "text": "Scheduler and HTTP-fake tests prove one watchdog GET is dispatched for each due minute to a configured HTTPS heartbeat URL with overlap prevention and bounded timeout, every 2xx records success, and scheduler registration coexists with alerting relay, retry, grouping, and maintenance-expiry entries."
+        },
+        {
+          "id": "AC-alerting-reliability-core-17",
+          "text": "Failure-path tests prove missing configuration sends no request and reports disabled, while timeout, transport, and non-2xx responses produce only redacted local diagnostics, leave other scheduler tasks runnable, and allow a successful request on the next due minute without exposing URL credentials or query values."
+        }
+      ]
+    }
+  ]
+}

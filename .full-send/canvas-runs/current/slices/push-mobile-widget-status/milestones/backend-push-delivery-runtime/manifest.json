@@ -1,0 +1,1 @@
+{"targets":["backend"],"verification":[{"target":"backend","cwd":".","commands":["./vendor/bin/pest tests/Feature/PushNotifications --compact","./vendor/bin/phpstan analyse --no-progress","./vendor/bin/pint --test"]}],"artifacts":["test_results","lint_results","criteria_evidence_map"]}

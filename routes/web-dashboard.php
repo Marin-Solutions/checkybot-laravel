@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+
+use Illuminate\Support\Facades\Route;
+use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Http\RequireLoopback;
+use MarinSolutions\CheckybotLaravel\Http\Controllers\ApiMonitorBuilderController;
+use MarinSolutions\CheckybotLaravel\Http\Controllers\WebDashboard\AuthenticateWebOperator;
+use MarinSolutions\CheckybotLaravel\Http\Controllers\WebDashboard\HarnessWebOperatorController;
+use MarinSolutions\CheckybotLaravel\Http\Controllers\WebDashboard\MonitorDetailController;
+use MarinSolutions\CheckybotLaravel\Http\Controllers\WebDashboard\OverviewController;
+
+Route::middleware(['web', AuthenticateWebOperator::class])
+    ->prefix('/checkybot')
+    ->group(static function (): void {
+        Route::get('/', OverviewController::class)->name('checkybot.dashboard');
+        Route::get('/monitors/{type}/{monitor_uuid}', MonitorDetailController::class)
+            ->whereIn('type', ['server', 'website', 'api'])
+            ->whereUuid('monitor_uuid')
+            ->name('checkybot.monitors.show');
+        Route::get('/api-monitors/{monitor_uuid}/assertions', [ApiMonitorBuilderController::class, 'show'])
+            ->whereUuid('monitor_uuid')
+            ->name('checkybot.api-monitors.assertions.show');
+        Route::post('/api-monitors/{monitor_uuid}/sample', [ApiMonitorBuilderController::class, 'sample'])
+            ->whereUuid('monitor_uuid')
+            ->name('checkybot.api-monitors.sample');
+        Route::put('/api-monitors/{monitor_uuid}/assertions', [ApiMonitorBuilderController::class, 'update'])
+            ->whereUuid('monitor_uuid')
+            ->name('checkybot.api-monitors.assertions.update');
+    });
+
+if (app()->environment(['testing', 'harness'])) {
+    Route::middleware(['web', RequireLoopback::class])
+        ->get('/__harness/web-dashboard/authenticate/{projectUuid}', HarnessWebOperatorController::class)
+        ->whereUuid('projectUuid');
+}

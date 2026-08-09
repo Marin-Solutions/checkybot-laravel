@@ -1,0 +1,286 @@
+{
+  "acceptance_criteria": [
+    "AC-release-hardening-8",
+    "AC-release-hardening-9"
+  ],
+  "run_id": "ccbf1402-b376-4e03-bbf3-4442f8a5a9dc",
+  "stages": [
+    "built production StatusScreen loaded explicit healthy/empty state from authenticated real HTTP",
+    "sub-30-second deploy blip produced zero intents and no push receipt",
+    "confirmed two-monitor critical group produced one deduplicated Expo and legacy-webhook receipt",
+    "authenticated status-summary counts refreshed into the production status surface",
+    "forced surfaced API transport failure retained cached counts and visible last-sync age in offline treatment"
+  ],
+  "response_snapshots": {
+    "deploy_blip": {
+      "elapsed_seconds": 20,
+      "post_statuses": [
+        202,
+        202
+      ],
+      "alerting": {
+        "failed": {
+          "operation_id": "09d958ca-5316-45fd-ad79-10cac016988b",
+          "status": "processed",
+          "current_state": "healthy",
+          "transitions": [
+            {
+              "transition_id": "286905c0-7cea-4762-b861-50c7a2bc23c1",
+              "from": "healthy",
+              "to": "warn",
+              "severity": "warn",
+              "occurred_at": "2026-08-08T00:12:01+00:00",
+              "entered_at": "2026-08-08T00:12:01+00:00",
+              "reason_code": "deploy-timeout",
+              "group_id": null,
+              "maintenance_suppressed": false
+            },
+            {
+              "transition_id": "f56fce50-3392-4ae6-9cfc-a99f11e35d13",
+              "from": "warn",
+              "to": "healthy",
+              "severity": "warn",
+              "occurred_at": "2026-08-08T00:12:21+00:00",
+              "entered_at": "2026-08-08T00:12:21+00:00",
+              "reason_code": null,
+              "group_id": null,
+              "maintenance_suppressed": false
+            }
+          ],
+          "scheduled_retries": [],
+          "incident_groups": [],
+          "notification_intents": [],
+          "consumer_receipts": [
+            {
+              "consumer": "agent-v2-expanded-monitors",
+              "effect": "ingestion_contract_accepted",
+              "processed_at": "2026-08-08T00:12:26+00:00"
+            }
+          ]
+        },
+        "recovered": {
+          "operation_id": "2f74df37-b237-4d93-8e4f-e656f00dac4e",
+          "status": "processed",
+          "current_state": "healthy",
+          "transitions": [
+            {
+              "transition_id": "286905c0-7cea-4762-b861-50c7a2bc23c1",
+              "from": "healthy",
+              "to": "warn",
+              "severity": "warn",
+              "occurred_at": "2026-08-08T00:12:01+00:00",
+              "entered_at": "2026-08-08T00:12:01+00:00",
+              "reason_code": "deploy-timeout",
+              "group_id": null,
+              "maintenance_suppressed": false
+            },
+            {
+              "transition_id": "f56fce50-3392-4ae6-9cfc-a99f11e35d13",
+              "from": "warn",
+              "to": "healthy",
+              "severity": "warn",
+              "occurred_at": "2026-08-08T00:12:21+00:00",
+              "entered_at": "2026-08-08T00:12:21+00:00",
+              "reason_code": null,
+              "group_id": null,
+              "maintenance_suppressed": false
+            }
+          ],
+          "scheduled_retries": [],
+          "incident_groups": [],
+          "notification_intents": [],
+          "consumer_receipts": [
+            {
+              "consumer": "agent-v2-expanded-monitors",
+              "effect": "ingestion_contract_accepted",
+              "processed_at": "2026-08-08T00:12:26+00:00"
+            }
+          ]
+        }
+      },
+      "push_statuses": {
+        "failed": 404,
+        "recovered": 404
+      },
+      "relay": "\u001b[32mRelayed 2 foundation event(s).\u001b[39m\n[stage=relay] \u001b[32mRelayed 2 foundation event(s).\u001b[39m"
+    },
+    "confirmed_critical_group": {
+      "alerting": {
+        "operation_id": "abf67ad7-14d0-4be2-a8dd-fc440bc2e9a0",
+        "status": "processed",
+        "current_state": "down",
+        "transitions": [
+          {
+            "transition_id": "0418f279-e13e-4144-86c7-45f364a55ede",
+            "from": "healthy",
+            "to": "warn",
+            "severity": "warn",
+            "occurred_at": "2026-08-08T00:12:18+00:00",
+            "entered_at": "2026-08-08T00:12:18+00:00",
+            "reason_code": "threshold-exceeded",
+            "group_id": null,
+            "maintenance_suppressed": false
+          },
+          {
+            "transition_id": "36f8513a-1d8b-4e5f-9a3c-c1196584b9c9",
+            "from": "warn",
+            "to": "down",
+            "severity": "critical",
+            "occurred_at": "2026-08-08T00:12:18+00:00",
+            "entered_at": "2026-08-08T00:12:18+00:00",
+            "reason_code": "threshold-exceeded",
+            "group_id": "c48a587f-87c7-4d04-ae02-c2adb0c98d68",
+            "maintenance_suppressed": false
+          }
+        ],
+        "scheduled_retries": [],
+        "incident_groups": [
+          {
+            "group_id": "c48a587f-87c7-4d04-ae02-c2adb0c98d68",
+            "opened_at": "2026-08-08T00:12:15+00:00",
+            "closed_at": null,
+            "notification_thread_key": "incident:11111111-1111-4111-8111-111111111111:c48a587f-87c7-4d04-ae02-c2adb0c98d68",
+            "affected_monitors": [
+              {
+                "project_uuid": "11111111-1111-4111-8111-111111111111",
+                "monitor_uuid": "482fb0df-6374-4d1b-8609-f1e752daf054",
+                "type": "server"
+              },
+              {
+                "project_uuid": "11111111-1111-4111-8111-111111111111",
+                "monitor_uuid": "a4bcda3c-2933-4e6c-b186-790d38f78c1c",
+                "type": "server"
+              }
+            ]
+          }
+        ],
+        "notification_intents": [
+          {
+            "contract_version": "notification-intent.v1",
+            "operation_id": "743af1a8-6f7f-5be1-adf7-670154171fdf",
+            "intent_id": "ac1cd98a-81e1-5d15-95d5-51193ae02e4f",
+            "phase": "incident",
+            "project_uuid": "11111111-1111-4111-8111-111111111111",
+            "group_id": "c48a587f-87c7-4d04-ae02-c2adb0c98d68",
+            "severity": "critical",
+            "affected_monitors": [
+              {
+                "project_uuid": "11111111-1111-4111-8111-111111111111",
+                "monitor_uuid": "482fb0df-6374-4d1b-8609-f1e752daf054",
+                "type": "server"
+              },
+              {
+                "project_uuid": "11111111-1111-4111-8111-111111111111",
+                "monitor_uuid": "a4bcda3c-2933-4e6c-b186-790d38f78c1c",
+                "type": "server"
+              }
+            ],
+            "notification_thread_key": "incident:11111111-1111-4111-8111-111111111111:c48a587f-87c7-4d04-ae02-c2adb0c98d68",
+            "problem_filter": {
+              "route": "problems",
+              "monitor_uuids": [
+                "482fb0df-6374-4d1b-8609-f1e752daf054",
+                "a4bcda3c-2933-4e6c-b186-790d38f78c1c"
+              ]
+            },
+            "opened_at": "2026-08-08T00:12:15+00:00",
+            "emitted_at": "2026-08-08T00:12:45+00:00",
+            "downtime_seconds": null
+          }
+        ],
+        "consumer_receipts": [
+          {
+            "consumer": "agent-v2-expanded-monitors",
+            "effect": "ingestion_contract_accepted",
+            "processed_at": "2026-08-08T00:12:28+00:00"
+          }
+        ]
+      },
+      "push": {
+        "operation_id": "743af1a8-6f7f-5be1-adf7-670154171fdf",
+        "listener_status": "processed",
+        "expo_deliveries": [
+          {
+            "device_id": "11098945-746a-4c6e-ab5e-ceab014a2494",
+            "status": "accepted",
+            "ticket_id": "fake-1168bfc4ed42ca715608",
+            "priority": "high",
+            "sound": "default",
+            "interruption_level": "time-sensitive",
+            "refresh_widget": true
+          }
+        ],
+        "legacy_webhook": "accepted",
+        "reliability_recorded": true,
+        "processed_at": "2026-08-08T00:12:47+00:00"
+      },
+      "replay_statuses": [
+        200,
+        200,
+        200,
+        200,
+        200,
+        200
+      ],
+      "push_after_replay": {
+        "operation_id": "743af1a8-6f7f-5be1-adf7-670154171fdf",
+        "listener_status": "processed",
+        "expo_deliveries": [
+          {
+            "device_id": "11098945-746a-4c6e-ab5e-ceab014a2494",
+            "status": "accepted",
+            "ticket_id": "fake-1168bfc4ed42ca715608",
+            "priority": "high",
+            "sound": "default",
+            "interruption_level": "time-sensitive",
+            "refresh_widget": true
+          }
+        ],
+        "legacy_webhook": "accepted",
+        "reliability_recorded": true,
+        "processed_at": "2026-08-08T00:12:47+00:00"
+      },
+      "relays": [
+        "\u001b[32mRelayed 5 foundation event(s).\u001b[39m\n[stage=relay] \u001b[32mRelayed 5 foundation event(s).\u001b[39m",
+        "\u001b[32mRelayed 0 foundation event(s).\u001b[39m\n[stage=relay] \u001b[32mRelayed 0 foundation event(s).\u001b[39m"
+      ]
+    },
+    "status_summary": {
+      "http_status": 200,
+      "body": {
+        "data": {
+          "counts": {
+            "servers": {
+              "healthy": 0,
+              "warn": 0,
+              "down": 2
+            },
+            "websites": {
+              "healthy": 1,
+              "warn": 0,
+              "down": 0
+            },
+            "apis": {
+              "healthy": 0,
+              "warn": 0,
+              "down": 0
+            }
+          },
+          "updated_at": "2026-08-08T00:12:21.000000Z",
+          "stale": false
+        }
+      }
+    },
+    "forced_api_failure": {
+      "mechanism": "Playwright aborted the surfaced GET /api/status-summary request",
+      "offline_alert_visible": true,
+      "cached_server_down": 2,
+      "last_synced_age_visible": true
+    }
+  },
+  "screenshots": {
+    "status": "/home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/build/release-hardening-runtime/ccbf1402-b376-4e03-bbf3-4442f8a5a9dc/status-updated.png",
+    "stale_error": "/home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/build/release-hardening-runtime/ccbf1402-b376-4e03-bbf3-4442f8a5a9dc/status-api-failure.png"
+  },
+  "trace": "/home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/build/release-hardening-runtime/ccbf1402-b376-4e03-bbf3-4442f8a5a9dc/playwright-trace.zip"
+}

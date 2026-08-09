@@ -53,7 +53,10 @@
         "analyse": "vendor/bin/phpstan analyse",
         "test": "vendor/bin/pest",
         "test-coverage": "vendor/bin/pest --coverage",
-        "format": "vendor/bin/pint"
+        "format": "vendor/bin/pint",
+        "harness:backend:start": "scripts/runtime/backend start",
+        "harness:backend:stop": "scripts/runtime/backend stop",
+        "harness:test:backend": "vendor/bin/pest tests/Feature/Harness --compact"
     },
     "config": {
         "sort-packages": true,

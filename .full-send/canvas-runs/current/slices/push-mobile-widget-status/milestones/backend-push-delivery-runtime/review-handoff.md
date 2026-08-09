@@ -1,0 +1,1 @@
+Review approved for backend-push-delivery-runtime. I reran the manifest commands plus full Pest and the focused E2E test successfully. All acceptance criteria AC-push-mobile-widget-status-1 through AC-push-mobile-widget-status-5 pass with evidence recorded in review.md; the prior AC2/AC4 queue-worker and complete-UTC-day defects are resolved.

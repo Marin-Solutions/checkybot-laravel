@@ -1,0 +1,320 @@
+{
+  "slice_key": "ai-incident-annotations",
+  "base_requirements": [
+    "Canvas slice mandate: deliver v1.5 opt-in AI probable-cause annotation outside the alert path with a budget-capped provider, project-level flag, strict pre-egress redaction, queued processing, timeline API/UI fields, and no AI-created alerts",
+    "PRD 4.1 v1.5: AI runs only after a static check has confirmed an incident, sends only the last bounded relevant nginx, PHP-FPM, or MySQL context, and attaches one paragraph of probable cause",
+    "PRD 4.1 v1.5: AI annotations are disabled by default and enabled per project rather than globally",
+    "PRD 4.1 security: query-string values, authorization and cookie values, configured secrets, emails, and IP addresses are removed before any log content leaves the host",
+    "PRD 4.1 and 8: AI never creates alerts or participates in monitor state decisions; static rules remain authoritative",
+    "Inherited RedactionAndIncidentContracts: use the foundation RecursiveRedactor, MonitorIdentity, transition operation IDs, transactional outbox, and idempotent queue conventions",
+    "Inherited IncidentTimelineReadModel: persist provider-neutral annotation data against an existing confirmed-down transition and expose its latest root_cause slot without redefining lifecycle or incident ownership",
+    "Inherited RedactedLogSnippetProvider: request project-authorized, explicitly opted-in, already-filtered server context, require alert_eligible=false, and apply foundation redaction again immediately before provider serialization",
+    "Owned incident-ai-annotation and agent-logs-to-ai-annotation seams: register the dispatcher adapter, queue job, provider binding, routes, and testing receipt, then prove real agent HTTP to real worker/relay to real timeline HTTP end to end",
+    "Canvas verification requirement: feature tests cover opt-in, caps, redaction, no-alert creation, and queue processing; component tests cover annotation-present and annotation-absent states; the canonical full-runtime Playwright journey runs with the queue worker"
+  ],
+  "ownership": {
+    "files": [
+      "app/Domain/AiAnnotations",
+      "app/Http/Controllers/AiAnnotationSettingsController.php",
+      "app/Jobs/AiAnnotations",
+      "config/ai-annotations.php",
+      "database/migrations/2026_08_06_900000-2026_08_06_909999",
+      "routes/ai-annotations.php",
+      "tests/Component/AiAnnotations",
+      "tests/Feature/AiAnnotations",
+      "tests/Unit/AiAnnotations"
+    ],
+    "migration_timestamp_range": "2026_08_06_900000-2026_08_06_909999"
+  },
+  "api_contract": [
+    {
+      "route": "GET /checkybot/ai-annotations/settings",
+      "request": {
+        "headers": {
+          "Accept": "application/json"
+        },
+        "query": {},
+        "validation": "No project identifier is accepted from the client.",
+        "authorization": "Existing authenticated web operator guard; CurrentProjectResolver derives and authorizes the current project."
+      },
+      "response": {
+        "200": {
+          "data": {
+            "enabled": "boolean; false when no project setting exists",
+            "version": "non-negative integer used for optimistic concurrency",
+            "provider_configured": "boolean without provider credentials",
+            "budget": {
+              "period": "YYYY-MM in UTC",
+              "monthly_limit_microusd": "non-negative integer",
+              "reserved_microusd": "non-negative integer",
+              "spent_microusd": "non-negative integer",
+              "remaining_microusd": "non-negative integer"
+            },
+            "updated_at": "RFC3339 UTC datetime|null"
+          }
+        },
+        "302": "Redirect to the existing login route when unauthenticated",
+        "403": {
+          "message": "The operator cannot manage AI annotations for the selected project."
+        }
+      },
+      "consumed_by": "frontend"
+    },
+    {
+      "route": "PUT /checkybot/ai-annotations/settings",
+      "request": {
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": "existing web CSRF token"
+        },
+        "body": {
+          "enabled": "boolean",
+          "version": "non-negative integer from the GET response"
+        },
+        "validation": "Unknown fields are rejected; enabling requires valid HTTPS provider configuration and positive global/project budget caps. The update is atomic.",
+        "authorization": "Existing authenticated web operator guard and CSRF protection; CurrentProjectResolver is authoritative and no project override is accepted."
+      },
+      "response": {
+        "200": "The same data shape as GET with incremented version and updated_at",
+        "302": "Redirect to the existing login route when unauthenticated",
+        "403": {
+          "message": "The operator cannot manage AI annotations for the selected project."
+        },
+        "409": {
+          "message": "AI annotation settings changed; reload before saving."
+        },
+        "422": {
+          "message": "string",
+          "errors": "object keyed by enabled, version, or provider configuration"
+        }
+      },
+      "consumed_by": "frontend"
+    },
+    {
+      "route": "OUTBOX monitor.transitioned -> PHP IncidentConfirmedForAnnotation",
+      "request": {
+        "source_event": "foundation monitor.transitioned event whose operation_id identifies an existing MonitorTransition",
+        "eligibility": "to_state must be down, the transition must exist and remain project/monitor identical to the sanitized event, the project setting must be enabled, and monitor type must be server",
+        "identity": "foundation project UUID, monitor UUID, and server type",
+        "incident_window": "bounded UTC window around the confirmed-down transition",
+        "reason_code": "bounded static rule code read from the existing transition, never client supplied",
+        "delivery": "The AI dispatcher decorator is invoked by the registered foundation outbox relay and creates at most one annotation operation/job for the transition operation_id."
+      },
+      "response": {
+        "consumer_ack": "queued|duplicate|skipped",
+        "operation_id": "the immutable transition operation UUID",
+        "skip_reason": "disabled|ineligible_state|unsupported_monitor|missing_transition|null"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "PHP RedactedLogSnippetProvider::forIncident(AuthorizedLogSnippetRequest)",
+      "request": {
+        "identity": "foundation server MonitorIdentity from the confirmed-down transition",
+        "authorized_project_id": "the same project UUID derived from the transition and setting",
+        "from": "RFC3339 UTC lower incident-window bound",
+        "to": "RFC3339 UTC upper incident-window bound",
+        "sources": "non-empty subset of nginx|fpm|mysql",
+        "limit": "integer 1..200 further bounded by ai-annotations configuration",
+        "authorization": "The agent-owned server share_redacted_logs flag must also be explicitly enabled."
+      },
+      "response": {
+        "lines": "ordered bounded array of {source, observed_at, redacted_line}",
+        "truncated": "boolean",
+        "redaction_version": "string",
+        "alert_eligible": false,
+        "denied": "boolean; denied or empty context skips provider dispatch"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "POST {AI_ANNOTATIONS_PROVIDER_URL} (outbound)",
+      "request": {
+        "headers": {
+          "Authorization": "provider credential from runtime configuration; never persisted or logged",
+          "Content-Type": "application/json",
+          "Idempotency-Key": "annotation operation UUID"
+        },
+        "body": {
+          "model": "configured budget-class model identifier",
+          "messages": "fixed system instruction plus bounded context containing only source labels, timestamps, and lines passed through RecursiveRedactor immediately before JSON serialization",
+          "max_output_tokens": "positive configured cap",
+          "temperature": 0
+        },
+        "transport": "HTTPS only, bounded connect/request timeout, no redirects, no automatic transport retry after ambiguous provider acceptance, and no request-body logging."
+      },
+      "response": {
+        "success": {
+          "probable_cause": "one non-empty paragraph within configured character limit",
+          "input_tokens": "non-negative integer",
+          "output_tokens": "non-negative integer",
+          "billed_microusd": "non-negative integer not exceeding the operation reservation"
+        },
+        "failure": "Typed redacted not_configured|timeout|transport|rate_limited|invalid_response|over_reservation result; no annotation or alert is created."
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "GET /checkybot/monitors/{type}/{monitor_uuid}",
+      "request": {
+        "path": {
+          "type": "server|website|api",
+          "monitor_uuid": "UUID"
+        },
+        "headers": {
+          "Accept": "text/html or application/json",
+          "X-Inertia": "true for Inertia navigation"
+        },
+        "authorization": "Existing authenticated web operator guard; the monitor must belong to the current authorized project."
+      },
+      "response": {
+        "200": {
+          "component": "CheckybotDashboard/MonitorDetail",
+          "props": {
+            "timeline": {
+              "annotation_slots": [
+                {
+                  "key": "root_cause",
+                  "value": "latest completed one-paragraph probable cause for the monitor's most recent confirmed-down transition, or null"
+                }
+              ],
+              "annotation_slot_rules": "Provider credentials, prompts, raw snippets, token usage, costs, and failure diagnostics are never exposed; inherited non-AI slots remain provider-neutral and nullable."
+            }
+          }
+        },
+        "302": "Redirect to the existing login route when unauthenticated",
+        "403": "The operator cannot read this project",
+        "404": "No matching monitor exists in the authorized project"
+      },
+      "consumed_by": "frontend"
+    },
+    {
+      "route": "GET /__harness/ai-annotations/receipts/{operation_id}",
+      "request": {
+        "availability": "Canonical testing/harness runtime only, loopback-bound, and absent in production",
+        "path": {
+          "operation_id": "transition operation UUID produced through the real agent/alerting API path"
+        },
+        "authorization": "Harness-only loopback access"
+      },
+      "response": {
+        "200": {
+          "operation_id": "UUID",
+          "status": "queued|processing|completed|skipped|failed",
+          "skip_reason": "string|null",
+          "snippet": {
+            "line_count": "non-negative integer",
+            "redaction_version": "string|null",
+            "truncated": "boolean"
+          },
+          "budget": {
+            "reserved_microusd": "non-negative integer",
+            "spent_microusd": "non-negative integer"
+          },
+          "annotation": {
+            "root_cause": "string|null",
+            "generated_at": "RFC3339 UTC datetime|null"
+          },
+          "notification_side_effects": "counts before and after AI processing used by harness evidence"
+        },
+        "404": {
+          "message": "AI annotation operation not found."
+        }
+      },
+      "consumed_by": "backend"
+    }
+  ],
+  "backend_milestone_items": [
+    {
+      "milestone_key": "backend-ai-settings-budget-client",
+      "title": "Project opt-in, budget ledger, and redacted provider client",
+      "spec_section_id": "backend-ai-settings-budget-client",
+      "ledger_path": ".full-send/canvas-runs/current/slices/ai-incident-annotations/milestones/backend-ai-settings-budget-client/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/ai-incident-annotations/milestones/backend-ai-settings-budget-client/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/ai-incident-annotations/milestones/backend-ai-settings-budget-client/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/ai-incident-annotations/milestones/backend-ai-settings-budget-client/handoff.md",
+      "contract_excerpt": "Within inherited ownership (using package-path equivalents where the package maps app to src), create AI annotation project settings defaulting disabled, immutable optimistic versions, UTC monthly global/project budget buckets, reservation/settlement records, annotation operations, and transition-keyed annotations in the assigned migration range. Add routes/ai-annotations.php and a thin AiAnnotationSettingsController using the existing web operator middleware, CurrentProjectResolver, and CSRF. Under app/Domain/AiAnnotations, keep writes in actions/DTOs, bind a provider interface to a bounded HTTPS client, and load config/ai-annotations.php. Before any provider call, atomically reserve the configured maximum request cost against both project and global limits. Fetch only through RedactedLogSnippetProvider, run RecursiveRedactor again on every line immediately before serialization, omit project/monitor IDs and raw prompts/snippets from persistence/logs, cap line/input/output sizes, use the operation UUID as idempotency key, and sanitize/validate the one-paragraph result before settlement. No source screen or shared dashboard component is changed by this milestone.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-ai-incident-annotations-1",
+          "text": "Migration and model tests prove project settings default to enabled=false, one optimistic version exists per project, annotation operations and completed annotations are unique by confirmed-down transition operation UUID, UTC budget rows are unique by scope and month, and project-scoped queries cannot read or mutate another project's settings, usage, operations, or annotations."
+        },
+        {
+          "id": "AC-ai-incident-annotations-2",
+          "text": "Settings API feature tests prove GET and PUT redirect unauthenticated users, reject unauthorized project context and missing CSRF, accept no client project override, return false for an absent setting, enable or disable only the current project with a matching version, return 409 for stale versions, and return 422 when enabling without valid HTTPS provider and positive cap configuration."
+        },
+        {
+          "id": "AC-ai-incident-annotations-3",
+          "text": "Clock-controlled concurrency tests prove each provider attempt reserves its configured maximum against locked project and global UTC-month buckets before dispatch, simultaneous jobs cannot make reserved plus spent exceed either cap, an over-cap job makes zero provider requests, successful usage settles exactly once, and a new UTC month starts with independent zero usage."
+        },
+        {
+          "id": "AC-ai-incident-annotations-4",
+          "text": "HTTP-capture tests seed query values, Authorization and Cookie values, configured secrets, emails, IPv4, and IPv6 in provider-returned snippet fixtures and prove none appears in the serialized outbound body, headers other than the provider credential, application logs, exception reports, or AI persistence, while source labels and timestamps remain usable."
+        },
+        {
+          "id": "AC-ai-incident-annotations-5",
+          "text": "Provider-client tests prove only HTTPS configured hosts are called with bounded timeouts, no redirects, capped input and output, temperature zero, and the operation idempotency key; timeout, transport, rate-limit, malformed, multi-paragraph, oversized, or over-reservation responses produce typed redacted failures, and a valid one-paragraph result is recursively redacted before one settlement and persistence."
+        }
+      ]
+    },
+    {
+      "milestone_key": "backend-ai-annotation-seams",
+      "title": "Outbox-to-queue annotation seams and timeline read integration",
+      "spec_section_id": "backend-ai-annotation-seams",
+      "ledger_path": ".full-send/canvas-runs/current/slices/ai-incident-annotations/milestones/backend-ai-annotation-seams/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/ai-incident-annotations/milestones/backend-ai-annotation-seams/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/ai-incident-annotations/milestones/backend-ai-annotation-seams/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/ai-incident-annotations/milestones/backend-ai-annotation-seams/handoff.md",
+      "contract_excerpt": "Register the AI annotations module, routes, FoundationEventDispatcher decorator, IncidentConfirmedForAnnotation adapter, and app/Jobs/AiAnnotations queued job using the existing outbox relay/worker conventions. The decorator validates a sanitized monitor.transitioned event against the persisted transition and creates one operation only for an enabled project's confirmed server down transition; warn, recovering, healthy, foreign, missing, duplicate, and unsupported events are skipped. The job rechecks the flag and transition, requests bounded nginx/FPM/MySQL context from RedactedLogSnippetProvider, requires alert_eligible=false, reserves budget, invokes the safe provider once, and writes a redacted root_cause against the existing transition without changing state, transitions, incident groups, outbox notification intents, or notifications. Expose the latest completed root_cause through the inherited provider-neutral IncidentTimelineReadModel slot and real monitor-detail Inertia route, and register a loopback-only testing receipt route that is absent in production. The connecting dispatcher, queue job, relay compatibility, provider binding, route registration, and receipt are explicit scope for both owned seams.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-ai-incident-annotations-6",
+          "text": "Dispatcher and registration tests prove the AI module, route file, dispatcher decorator, queue job, and harness receipt are registered; exactly one job is queued for an enabled project's persisted server transition to down, while disabled projects, warn/recovering/healthy transitions, non-server identities, missing or mismatched transitions, duplicate delivery, and production harness-route access queue zero jobs."
+        },
+        {
+          "id": "AC-ai-incident-annotations-7",
+          "text": "Queue feature tests prove an eligible job calls RedactedLogSnippetProvider with the transition's authorized project/server identity and bounded incident window, requires alert_eligible=false, and on valid context stores one recursively redacted root_cause linked to that existing transition; replaying or concurrently running the same operation makes no second provider call, charge, or annotation."
+        },
+        {
+          "id": "AC-ai-incident-annotations-8",
+          "text": "No-alert feature tests snapshot MonitorState, MonitorTransition, incident-group, NotificationIntentCreated outbox, notification-intent, and push-operation rows after the static down is confirmed, process both successful and failed AI jobs, and prove every snapshot count and lifecycle value is unchanged except AI-owned operation, budget, and annotation rows."
+        },
+        {
+          "id": "AC-ai-incident-annotations-9",
+          "text": "Failure-path queue tests prove disabled-on-recheck, denied or empty snippets, exhausted budget, unavailable provider, invalid output, and ambiguous transport acceptance finish as declared skipped or failed states with no root_cause and no alert side effect; duplicate queue deliveries preserve one terminal receipt and cannot reserve or spend twice."
+        },
+        {
+          "id": "AC-ai-incident-annotations-10",
+          "text": "A Pest end-to-end test proves both owned seams by enabling project AI through PUT /checkybot/ai-annotations/settings, posting three authenticated static-breach reports through POST /api/v2/agent-reports, running the registered agent evaluator and foundation outbox relay with the real queue worker, and observing through GET /__harness/ai-annotations/receipts/{operation_id} and the real GET /checkybot/monitors/server/{monitor_uuid} X-Inertia API that the IncidentConfirmedForAnnotation consumer fetched the agent RedactedLogSnippetProvider context and persisted the redacted root_cause, without invoking an evaluator, dispatcher, snippet provider, annotation job, processor, read model, or controller directly."
+        }
+      ]
+    }
+  ],
+  "frontend_milestone_items": [
+    {
+      "milestone_key": "frontend-ai-annotation-states",
+      "title": "Annotation-present and annotation-absent UI contract verification",
+      "spec_section_id": "frontend-ai-annotation-states",
+      "ledger_path": ".full-send/canvas-runs/current/slices/ai-incident-annotations/milestones/frontend-ai-annotation-states/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/ai-incident-annotations/milestones/frontend-ai-annotation-states/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/ai-incident-annotations/milestones/frontend-ai-annotation-states/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/ai-incident-annotations/milestones/frontend-ai-annotation-states/handoff.md",
+      "contract_excerpt": "This slice owns no screen or product frontend source path and therefore must not fork or restyle the web-dashboard owner's MonitorDetail/Annotations components. Under tests/Component/AiAnnotations, verify those existing shared components against the declared annotation_slots contract: root_cause is a nullable, provider-neutral string; present content is one readable paragraph; absent/skipped/disabled content is explicitly unavailable; and no provider, prompt, snippet, credential, token, or cost metadata reaches the DOM. Verify the settings API request/response client contract without inventing a duplicate project selector. No owned screen references exist, so visual capture comparison is not applicable. The canonical runtime journey uses the existing shared dashboard UI and design tokens.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-ai-incident-annotations-11",
+          "text": "Component tests prove a contract-valid non-null root_cause renders as one readable probable-cause paragraph in the existing monitor annotation section, preserves safe line wrapping, and renders no provider name, model, prompt, log snippet, credential, token usage, cost, or failure metadata."
+        },
+        {
+          "id": "AC-ai-incident-annotations-12",
+          "text": "Component tests prove null root_cause values for never-enabled, disabled, skipped, failed, and not-yet-completed operations render the existing explicit unavailable state rather than an empty card, loading spinner, fabricated cause, or alert, while unrelated timeline and annotation slots remain unchanged."
+        },
+        {
+          "id": "AC-ai-incident-annotations-13",
+          "text": "The canonical full-runtime Playwright journey runs with the real queue worker, authenticates through the harness web session, verifies an opted-out confirmed incident shows root cause unavailable, enables the project through the real settings API, produces a new static server incident through the real agent API, waits for the registered relay and AI queue processing, and verifies the existing monitor-detail UI shows the redacted probable-cause paragraph while notification counts do not increase during AI processing; the journey emits the required logs, screenshot, and trace evidence without direct service or component invocation."
+        }
+      ]
+    }
+  ]
+}

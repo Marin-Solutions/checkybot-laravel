@@ -2,6 +2,13 @@
 
 All notable changes to `checkybot-laravel` will be documented in this file.
 
+## Unreleased
+
+- Sends the canonical `check-sync.v1` body with uptime, SSL, API, dead-link, OpenGraph, domain-expiry, and response-time-budget arrays.
+- Adds domain-expiry declarations (30-day default), p95 response-time budgets (2000 ms default), and ordered API status, latency, and JSON body assertion metadata to fluent and config APIs.
+- Keeps existing fluent methods, config names, and legacy sync-summary aliases compatible while servers roll out `check-sync.v1`; deploy the compatible server before upgrading the package.
+- Sends header and token plaintext only to the authenticated HTTPS API for downstream encryption at rest and masks those values from package output, exceptions, logs, debugging, and integration evidence.
+
 ## v0.2.1 - 2026-07-31
 
 Hardens runtime component status reporting for retries and clock skew.

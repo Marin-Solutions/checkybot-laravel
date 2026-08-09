@@ -1,0 +1,340 @@
+{
+  "contract_version": "frontend-release-handover-evidence.v1",
+  "result": "PASS",
+  "run_id": "429ae1bd-7800-46fe-9f64-2d1a4529e66c",
+  "commit": "ee0b4489cc0c3ff9a7886a3979e5a8397f268bfb",
+  "started_at": "2026-08-08T00:17:37.396Z",
+  "completed_at": "2026-08-08T00:18:18.090Z",
+  "exact_commands": [
+    "node tests/Component/ReleaseHardening/runtime-stage.mjs prepare",
+    "node tests/Component/ReleaseHardening/runtime-stage.mjs build",
+    "node tests/Component/ReleaseHardening/runtime-stage.mjs component",
+    "node tests/Component/ReleaseHardening/runtime-stage.mjs start",
+    "node tests/Component/ReleaseHardening/runtime-stage.mjs playwright",
+    "node tests/Component/ReleaseHardening/runtime-stage.mjs stop",
+    "node tests/Component/ReleaseHardening/runtime-stage.mjs finalize"
+  ],
+  "endpoint_urls": {
+    "status_summary": "http://127.0.0.1:32939/api/status-summary",
+    "alerting_results": "http://127.0.0.1:32939/__harness/alerting/results",
+    "alerting_receipts": "http://127.0.0.1:32939/__harness/alerting/receipts/{operation_id}",
+    "push_receipts": "http://127.0.0.1:32939/__harness/push/receipts/{operation_id}",
+    "built_status_surface": "http://127.0.0.1:43319"
+  },
+  "run_scoped_sqlite_path": "/home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/build/release-hardening-runtime/429ae1bd-7800-46fe-9f64-2d1a4529e66c/database.sqlite",
+  "queue_worker_proof": {
+    "pid": 693042,
+    "start_marker": "[stage=worker-start]",
+    "processed_job_marker_present": true,
+    "log": ".full-send/canvas-runs/current/handover-checklists/evidence/frontend-final-states-runtime-proof/429ae1bd-7800-46fe-9f64-2d1a4529e66c/worker.log"
+  },
+  "response_snapshots": {
+    "deploy_blip": {
+      "elapsed_seconds": 20,
+      "post_statuses": [
+        202,
+        202
+      ],
+      "alerting": {
+        "failed": {
+          "operation_id": "162c3e2d-b350-45d9-96a1-bfb965541cc0",
+          "status": "processed",
+          "current_state": "healthy",
+          "transitions": [
+            {
+              "transition_id": "d10d45ca-dbc1-48d5-b18b-3766fd4e20f8",
+              "from": "healthy",
+              "to": "warn",
+              "severity": "warn",
+              "occurred_at": "2026-08-08T00:17:32+00:00",
+              "entered_at": "2026-08-08T00:17:32+00:00",
+              "reason_code": "deploy-timeout",
+              "group_id": null,
+              "maintenance_suppressed": false
+            },
+            {
+              "transition_id": "550715b6-d924-4060-817d-3b2eb59cd484",
+              "from": "warn",
+              "to": "healthy",
+              "severity": "warn",
+              "occurred_at": "2026-08-08T00:17:52+00:00",
+              "entered_at": "2026-08-08T00:17:52+00:00",
+              "reason_code": null,
+              "group_id": null,
+              "maintenance_suppressed": false
+            }
+          ],
+          "scheduled_retries": [],
+          "incident_groups": [],
+          "notification_intents": [],
+          "consumer_receipts": [
+            {
+              "consumer": "agent-v2-expanded-monitors",
+              "effect": "ingestion_contract_accepted",
+              "processed_at": "2026-08-08T00:17:57+00:00"
+            }
+          ]
+        },
+        "recovered": {
+          "operation_id": "d0ec6bd0-79cd-4bd6-994b-d312e25261ae",
+          "status": "processed",
+          "current_state": "healthy",
+          "transitions": [
+            {
+              "transition_id": "d10d45ca-dbc1-48d5-b18b-3766fd4e20f8",
+              "from": "healthy",
+              "to": "warn",
+              "severity": "warn",
+              "occurred_at": "2026-08-08T00:17:32+00:00",
+              "entered_at": "2026-08-08T00:17:32+00:00",
+              "reason_code": "deploy-timeout",
+              "group_id": null,
+              "maintenance_suppressed": false
+            },
+            {
+              "transition_id": "550715b6-d924-4060-817d-3b2eb59cd484",
+              "from": "warn",
+              "to": "healthy",
+              "severity": "warn",
+              "occurred_at": "2026-08-08T00:17:52+00:00",
+              "entered_at": "2026-08-08T00:17:52+00:00",
+              "reason_code": null,
+              "group_id": null,
+              "maintenance_suppressed": false
+            }
+          ],
+          "scheduled_retries": [],
+          "incident_groups": [],
+          "notification_intents": [],
+          "consumer_receipts": [
+            {
+              "consumer": "agent-v2-expanded-monitors",
+              "effect": "ingestion_contract_accepted",
+              "processed_at": "2026-08-08T00:17:57+00:00"
+            }
+          ]
+        }
+      },
+      "push_statuses": {
+        "failed": 404,
+        "recovered": 404
+      },
+      "relay": "\u001b[32mRelayed 2 foundation event(s).\u001b[39m\n[stage=relay] \u001b[32mRelayed 2 foundation event(s).\u001b[39m"
+    },
+    "confirmed_critical_group": {
+      "alerting": {
+        "operation_id": "cec9ab0a-aa15-4275-be03-cd2b37163ba8",
+        "status": "processed",
+        "current_state": "down",
+        "transitions": [
+          {
+            "transition_id": "4636e757-be1f-4590-b198-bc3db67f19d4",
+            "from": "healthy",
+            "to": "warn",
+            "severity": "warn",
+            "occurred_at": "2026-08-08T00:17:47+00:00",
+            "entered_at": "2026-08-08T00:17:47+00:00",
+            "reason_code": "threshold-exceeded",
+            "group_id": null,
+            "maintenance_suppressed": false
+          },
+          {
+            "transition_id": "91ceb50c-8fec-4b04-8af8-0725856af92a",
+            "from": "warn",
+            "to": "down",
+            "severity": "critical",
+            "occurred_at": "2026-08-08T00:17:47+00:00",
+            "entered_at": "2026-08-08T00:17:47+00:00",
+            "reason_code": "threshold-exceeded",
+            "group_id": "a7c8487b-83ec-4f36-b3cf-1cedf535cb51",
+            "maintenance_suppressed": false
+          }
+        ],
+        "scheduled_retries": [],
+        "incident_groups": [
+          {
+            "group_id": "a7c8487b-83ec-4f36-b3cf-1cedf535cb51",
+            "opened_at": "2026-08-08T00:17:44+00:00",
+            "closed_at": null,
+            "notification_thread_key": "incident:11111111-1111-4111-8111-111111111111:a7c8487b-83ec-4f36-b3cf-1cedf535cb51",
+            "affected_monitors": [
+              {
+                "project_uuid": "11111111-1111-4111-8111-111111111111",
+                "monitor_uuid": "ce25f0f4-44ae-4b0b-9124-dee5cb4ab9c0",
+                "type": "server"
+              },
+              {
+                "project_uuid": "11111111-1111-4111-8111-111111111111",
+                "monitor_uuid": "cb7e9ad7-7d4a-423c-9348-f4c24806f5aa",
+                "type": "server"
+              }
+            ]
+          }
+        ],
+        "notification_intents": [
+          {
+            "contract_version": "notification-intent.v1",
+            "operation_id": "9a9fb415-66b8-52b6-ac6c-6a84b7382e5d",
+            "intent_id": "f98eb0dd-727c-5a05-b60d-7afa6c51f5d8",
+            "phase": "incident",
+            "project_uuid": "11111111-1111-4111-8111-111111111111",
+            "group_id": "a7c8487b-83ec-4f36-b3cf-1cedf535cb51",
+            "severity": "critical",
+            "affected_monitors": [
+              {
+                "project_uuid": "11111111-1111-4111-8111-111111111111",
+                "monitor_uuid": "ce25f0f4-44ae-4b0b-9124-dee5cb4ab9c0",
+                "type": "server"
+              },
+              {
+                "project_uuid": "11111111-1111-4111-8111-111111111111",
+                "monitor_uuid": "cb7e9ad7-7d4a-423c-9348-f4c24806f5aa",
+                "type": "server"
+              }
+            ],
+            "notification_thread_key": "incident:11111111-1111-4111-8111-111111111111:a7c8487b-83ec-4f36-b3cf-1cedf535cb51",
+            "problem_filter": {
+              "route": "problems",
+              "monitor_uuids": [
+                "ce25f0f4-44ae-4b0b-9124-dee5cb4ab9c0",
+                "cb7e9ad7-7d4a-423c-9348-f4c24806f5aa"
+              ]
+            },
+            "opened_at": "2026-08-08T00:17:44+00:00",
+            "emitted_at": "2026-08-08T00:18:14+00:00",
+            "downtime_seconds": null
+          }
+        ],
+        "consumer_receipts": [
+          {
+            "consumer": "agent-v2-expanded-monitors",
+            "effect": "ingestion_contract_accepted",
+            "processed_at": "2026-08-08T00:17:58+00:00"
+          }
+        ]
+      },
+      "push": {
+        "operation_id": "9a9fb415-66b8-52b6-ac6c-6a84b7382e5d",
+        "listener_status": "processed",
+        "expo_deliveries": [
+          {
+            "device_id": "91ccbb31-549c-4240-ac7b-02102646cc41",
+            "status": "accepted",
+            "ticket_id": "fake-7dcc5b820c9ad6df28fa",
+            "priority": "high",
+            "sound": "default",
+            "interruption_level": "time-sensitive",
+            "refresh_widget": true
+          }
+        ],
+        "legacy_webhook": "accepted",
+        "reliability_recorded": true,
+        "processed_at": "2026-08-08T00:18:15+00:00"
+      },
+      "replay_statuses": [
+        200,
+        200,
+        200,
+        200,
+        200,
+        200
+      ],
+      "push_after_replay": {
+        "operation_id": "9a9fb415-66b8-52b6-ac6c-6a84b7382e5d",
+        "listener_status": "processed",
+        "expo_deliveries": [
+          {
+            "device_id": "91ccbb31-549c-4240-ac7b-02102646cc41",
+            "status": "accepted",
+            "ticket_id": "fake-7dcc5b820c9ad6df28fa",
+            "priority": "high",
+            "sound": "default",
+            "interruption_level": "time-sensitive",
+            "refresh_widget": true
+          }
+        ],
+        "legacy_webhook": "accepted",
+        "reliability_recorded": true,
+        "processed_at": "2026-08-08T00:18:15+00:00"
+      },
+      "relays": [
+        "\u001b[32mRelayed 5 foundation event(s).\u001b[39m\n[stage=relay] \u001b[32mRelayed 5 foundation event(s).\u001b[39m",
+        "\u001b[32mRelayed 0 foundation event(s).\u001b[39m\n[stage=relay] \u001b[32mRelayed 0 foundation event(s).\u001b[39m"
+      ]
+    },
+    "status_summary": {
+      "http_status": 200,
+      "body": {
+        "data": {
+          "counts": {
+            "servers": {
+              "healthy": 0,
+              "warn": 0,
+              "down": 2
+            },
+            "websites": {
+              "healthy": 1,
+              "warn": 0,
+              "down": 0
+            },
+            "apis": {
+              "healthy": 0,
+              "warn": 0,
+              "down": 0
+            }
+          },
+          "updated_at": "2026-08-08T00:17:52.000000Z",
+          "stale": false
+        }
+      }
+    },
+    "forced_api_failure": {
+      "mechanism": "Playwright aborted the surfaced GET /api/status-summary request",
+      "offline_alert_visible": true,
+      "cached_server_down": 2,
+      "last_synced_age_visible": true
+    }
+  },
+  "component_summary": {
+    "passed": true,
+    "summary": "Test Suites: 2 passed, 2 total | Tests:       12 passed, 12 total"
+  },
+  "playwright_summary": {
+    "passed": true,
+    "summary": "\u001b[1A\u001b[2K  1 passed (20.9s)"
+  },
+  "artifacts": {
+    "component_log": ".full-send/canvas-runs/current/handover-checklists/evidence/frontend-final-states-runtime-proof/429ae1bd-7800-46fe-9f64-2d1a4529e66c/component.log",
+    "playwright_log": ".full-send/canvas-runs/current/handover-checklists/evidence/frontend-final-states-runtime-proof/429ae1bd-7800-46fe-9f64-2d1a4529e66c/playwright.log",
+    "backend_log": ".full-send/canvas-runs/current/handover-checklists/evidence/frontend-final-states-runtime-proof/429ae1bd-7800-46fe-9f64-2d1a4529e66c/backend.log",
+    "worker_log": ".full-send/canvas-runs/current/handover-checklists/evidence/frontend-final-states-runtime-proof/429ae1bd-7800-46fe-9f64-2d1a4529e66c/worker.log",
+    "frontend_log": ".full-send/canvas-runs/current/handover-checklists/evidence/frontend-final-states-runtime-proof/429ae1bd-7800-46fe-9f64-2d1a4529e66c/frontend.log",
+    "relay_log": ".full-send/canvas-runs/current/handover-checklists/evidence/frontend-final-states-runtime-proof/429ae1bd-7800-46fe-9f64-2d1a4529e66c/relay.log",
+    "browser_evidence": ".full-send/canvas-runs/current/handover-checklists/evidence/frontend-final-states-runtime-proof/429ae1bd-7800-46fe-9f64-2d1a4529e66c/browser-evidence.json",
+    "status_screenshot": ".full-send/canvas-runs/current/handover-checklists/evidence/frontend-final-states-runtime-proof/429ae1bd-7800-46fe-9f64-2d1a4529e66c/status-updated.png",
+    "stale_screenshot": ".full-send/canvas-runs/current/handover-checklists/evidence/frontend-final-states-runtime-proof/429ae1bd-7800-46fe-9f64-2d1a4529e66c/status-api-failure.png",
+    "trace": ".full-send/canvas-runs/current/handover-checklists/evidence/frontend-final-states-runtime-proof/429ae1bd-7800-46fe-9f64-2d1a4529e66c/playwright-trace.sanitized.zip"
+  },
+  "watchdog_reference": "docs/watchdog-and-push-retirement.md#external-watchdog-handover-gate",
+  "proving_28_day_reference": ".full-send/canvas-runs/current/handover-checklists/v1/push-retirement.template.json",
+  "fleet_inventory_reference": ".full-send/canvas-runs/current/handover-checklists/v1/fleet-readiness.template.json",
+  "secret_scan": {
+    "result": "PASS",
+    "matches": 0,
+    "path": ".full-send/canvas-runs/current/handover-checklists/evidence/frontend-final-states-runtime-proof/429ae1bd-7800-46fe-9f64-2d1a4529e66c/secret-scan.txt",
+    "scanned_at": "2026-08-08T00:18:18.090Z"
+  },
+  "cleanup_proof": {
+    "completed_at": "2026-08-08T00:18:18.024Z",
+    "recorded_pids": {
+      "backend": 693041,
+      "worker": 693042,
+      "frontend": 693044
+    },
+    "alive_after_cleanup": {
+      "backend": false,
+      "worker": false,
+      "frontend": false
+    }
+  }
+}

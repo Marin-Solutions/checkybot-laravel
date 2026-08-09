@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Checkybot Harness Fixture",
+    "slug": "checkybot-harness-fixture",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "platforms": ["web"],
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    }
+  }
+}

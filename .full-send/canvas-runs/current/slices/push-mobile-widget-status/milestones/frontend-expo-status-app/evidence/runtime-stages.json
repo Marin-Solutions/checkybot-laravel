@@ -1,0 +1,9 @@
+{
+  "result": "passed",
+  "run_id": "91516bb0-efee-4f7f-9292-09ff20b5ae92",
+  "database": "run-scoped SQLite",
+  "queue_worker": "real database queue worker",
+  "worker_start_observed": true,
+  "journey": "runtime-journey.json",
+  "screenshot": "runtime-status-offline.png"
+}

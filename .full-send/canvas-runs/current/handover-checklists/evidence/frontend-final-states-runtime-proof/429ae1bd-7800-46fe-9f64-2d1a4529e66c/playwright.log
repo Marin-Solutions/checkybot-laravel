@@ -1,0 +1,7 @@
+[2026-08-08T00:17:55.580Z] $ /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/node_modules/.bin/playwright test --config tests/Component/ReleaseHardening/playwright.config.ts
+
+Running 1 test using 1 worker
+
+[1A[2K[1/1] tests/Component/ReleaseHardening/ReleaseHandoverRuntime.spec.ts:50:5 › canonical release handover journey proves alerting, push, status refresh, and cached failure states
+[1A[2K  1 passed (20.9s)
+[2026-08-08T00:18:17.075Z] exit=0

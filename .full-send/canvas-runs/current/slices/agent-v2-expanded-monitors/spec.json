@@ -1,0 +1,55 @@
+{
+  "slice_key": "agent-v2-expanded-monitors",
+  "title": "Agent v2 and expanded monitor evaluators",
+  "spec_path": ".full-send/canvas-runs/current/slices/agent-v2-expanded-monitors/spec.json",
+  "mandate": "Deliver agent v2 and PRD phase-3 breadth: versioned stateful agent payloads, persisted network rx/tx deltas, log permission prerequisites, PHP-FPM worker/max_children parsing, nginx access/error log 5xx and timeout rules with misconfiguration state, server-side dead-man's switch, configurable link caps, fleet re-rollout documentation, domain-expiry lookup, and p95 response-time budget evaluator over stored check speeds. Agent evaluators emit normalized monitor results through the alerting ingestion interface. Verification expectations: feature tests for ingest validation, dead-man timing, threshold rules, missing access logs, domain expiry, and response-time budgets; component tests for any exposed prerequisite/status cards; and a full-runtime Playwright journey through the canonical harness with the queue worker running.",
+  "ownership": {
+    "files": [
+      "agent",
+      "app/Domain/Agent",
+      "app/Domain/ExpandedChecks",
+      "app/Http/Controllers/AgentReportController.php",
+      "app/Jobs/Agent",
+      "app/Jobs/ExpandedChecks",
+      "database/migrations/2026_08_06_030000-2026_08_06_039999",
+      "docs/agent-v2-rollout.md",
+      "routes/agent.php",
+      "tests/Feature/AgentV2",
+      "tests/Feature/ExpandedChecks",
+      "tests/Unit/AgentV2"
+    ],
+    "migration_timestamp_range": "2026_08_06_030000-2026_08_06_039999"
+  },
+  "contracts": [
+    {
+      "consumes": "MonitorDomainContracts",
+      "from": "domain-runtime-foundation",
+      "contract": "Uses shared monitor identities, misconfiguration state, severity levels, and sample DTOs."
+    },
+    {
+      "consumes": "MonitorResultIngestionInterface",
+      "from": "alerting-reliability-core",
+      "contract": "Evaluator jobs submit normalized threshold breaches/results for alerting retries, hysteresis, and state transitions."
+    },
+    {
+      "provides": "RedactedLogSnippetProvider",
+      "to": [
+        "ai-incident-annotations"
+      ],
+      "contract": "Opt-in source of already-filtered nginx/FPM/MySQL context lines for annotation, never alert creation."
+    }
+  ],
+  "depends_on": [
+    "alerting-reliability-core"
+  ],
+  "owned_seams": [
+    {
+      "seam_key": "agent-evaluators-to-alerting",
+      "event_or_interface": "MonitorResultIngestionInterface",
+      "producer_slice": "alerting-reliability-core",
+      "consumer_slice": "agent-v2-expanded-monitors",
+      "owner_slice": "agent-v2-expanded-monitors",
+      "wiring": "Agent slice owns scheduled evaluator commands and queue jobs that transform agent/domain/response samples into Alerting MonitorResult DTOs and dispatch them through the alerting fake or real queue worker."
+    }
+  ]
+}

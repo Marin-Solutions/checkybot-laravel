@@ -62,6 +62,8 @@ class CheckybotClient
         protected int $retryDelay = 1000,
         ?Client $client = null
     ) {
+        $this->assertSecureBaseUrl($baseUrl);
+
         $this->client = $client ?? new Client([
             'base_uri' => rtrim($baseUrl, '/'),
             'timeout' => $timeout,
@@ -80,28 +82,19 @@ class CheckybotClient
      */
     public function syncChecks(array $payload): array
     {
-        $url = "/api/v1/projects/{$this->projectId}/checks/sync";
+        $url = '/api/v1/projects/'.rawurlencode($this->projectId).'/checks/sync';
 
         try {
-            $response = $this->client->post($url, [
-                'json' => $payload,
-                'headers' => [
-                    'Accept' => 'application/json',
-                    'Authorization' => 'Bearer '.$this->apiKey,
-                ],
-            ]);
-
+            $response = $this->postSync($url, $payload);
             $statusCode = $response->getStatusCode();
+            $body = $this->decodeResponseBody($response);
 
-            if ($statusCode >= 400) {
-                $body = json_decode($response->getBody()->getContents(), true);
+            if (! in_array($statusCode, [200, 202], true)) {
                 throw new CheckybotSyncException(
-                    $this->formatErrorMessage($body),
+                    $this->redactSyncMessage($this->formatErrorMessage($body), $payload),
                     $statusCode
                 );
             }
-
-            $body = json_decode($response->getBody()->getContents(), true) ?? [];
 
             Log::info('Checkybot sync successful', [
                 'project_id' => $this->projectId,
@@ -110,16 +103,61 @@ class CheckybotClient
 
             return $body;
         } catch (GuzzleException $e) {
-            $errorMessage = $this->parseErrorMessage($e);
+            $errorMessage = $this->redactSyncMessage($this->parseErrorMessage($e), $payload);
 
             Log::error('Checkybot sync failed', [
                 'project_id' => $this->projectId,
-                'error' => $this->redactLogMessage($errorMessage),
+                'error' => $errorMessage,
                 'status_code' => $e->getCode(),
             ]);
 
-            throw new CheckybotSyncException($errorMessage, (int) $e->getCode(), $e);
+            // Do not retain the transport exception: request objects may contain
+            // authorization or JSON body plaintext in their debug representation.
+            throw new CheckybotSyncException($errorMessage, (int) $e->getCode());
         }
+    }
+
+    private function assertSecureBaseUrl(string $baseUrl): void
+    {
+        $valid = filter_var($baseUrl, FILTER_VALIDATE_URL) !== false;
+        $scheme = strtolower((string) parse_url($baseUrl, PHP_URL_SCHEME));
+        $host = strtolower(trim((string) parse_url($baseUrl, PHP_URL_HOST), '[]'));
+
+        if ($valid && $scheme === 'https') {
+            return;
+        }
+
+        $harnessEnvironment = false;
+        try {
+            $harnessEnvironment = app()->environment(['testing', 'harness']);
+        } catch (\Throwable) {
+            $harnessEnvironment = in_array((string) getenv('APP_ENV'), ['testing', 'harness'], true);
+        }
+
+        if ($valid && $scheme === 'http' && $harnessEnvironment && in_array($host, ['127.0.0.1', '::1', 'localhost'], true)) {
+            return;
+        }
+
+        throw new InvalidArgumentException('Checkybot sync requires an HTTPS base URL; HTTP is restricted to the loopback test harness.');
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function postSync(string $url, array $payload): ResponseInterface
+    {
+        // Declaration sync is a single authoritative replacement request. Do not
+        // replay it after an ambiguous network outcome; component-status reports
+        // have a separate idempotency key and bounded retry path below.
+        return $this->client->post($url, [
+            'json' => $payload,
+            'allow_redirects' => false,
+            'headers' => [
+                'Accept' => 'application/json',
+                'Content-Type' => 'application/json',
+                'Authorization' => 'Bearer '.$this->apiKey,
+            ],
+        ]);
     }
 
     /**
@@ -354,13 +392,51 @@ class CheckybotClient
         return is_array($decoded) ? $decoded : [];
     }
 
-    private function redactLogMessage(string $message): string
+    /** @param array<string, mixed> $payload */
+    private function redactSyncMessage(string $message, array $payload): string
     {
-        if ($this->apiKey !== '') {
-            $message = str_replace(['Bearer '.$this->apiKey, $this->apiKey], '[redacted]', $message);
+        $secrets = [$this->apiKey, 'Bearer '.$this->apiKey];
+        $collect = function (mixed $value, ?string $key = null) use (&$collect, &$secrets): void {
+            if (! is_array($value)) {
+                return;
+            }
+            foreach ($value as $childKey => $child) {
+                if ($key === 'headers' && is_string($child) && $child !== '') {
+                    $secrets[] = $child;
+                    if (preg_match('/^Bearer\\s+(.+)$/i', $child, $match) === 1) {
+                        $secrets[] = $match[1];
+                    }
+                    if (preg_match_all('/(?:^|;\\s*)[^=;]+=(?<value>[^;]+)/', $child, $matches) > 0) {
+                        array_push($secrets, ...$matches['value']);
+                    }
+                }
+                $collect($child, is_string($childKey) ? $childKey : null);
+            }
+        };
+        $collect($payload);
+
+        foreach (array_unique($secrets) as $secret) {
+            if ($secret !== '') {
+                $message = str_replace($secret, '[REDACTED]', $message);
+            }
         }
+        $message = (string) preg_replace('/\b(Authorization|Proxy-Authorization|Cookie|Set-Cookie)\s*:\s*[^\r\n,}]+/iu', '$1: [REDACTED]', $message);
 
         return strlen($message) > 500 ? substr($message, 0, 500).'…' : $message;
+    }
+
+    /** @return array<string, mixed> */
+    public function __debugInfo(): array
+    {
+        return [
+            'baseUrl' => $this->baseUrl,
+            'apiKey' => '[REDACTED]',
+            'projectId' => $this->projectId,
+            'timeout' => $this->timeout,
+            'retryTimes' => $this->retryTimes,
+            'retryDelay' => $this->retryDelay,
+            'client' => $this->client::class,
+        ];
     }
 
     protected function parseErrorMessage(GuzzleException $e): string

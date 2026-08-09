@@ -2,8 +2,17 @@
 
 namespace MarinSolutions\CheckybotLaravel;
 
+use Illuminate\Support\Facades\Route;
 use MarinSolutions\CheckybotLaravel\Commands\CheckybotCommand;
+use MarinSolutions\CheckybotLaravel\Domain\Agent\AgentServiceProvider;
+use MarinSolutions\CheckybotLaravel\Domain\AiAnnotations\AiAnnotationsServiceProvider;
+use MarinSolutions\CheckybotLaravel\Domain\Alerting\AlertingServiceProvider;
+use MarinSolutions\CheckybotLaravel\Domain\ExpandedChecks\ExpandedChecksServiceProvider;
+use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\Http\RequireLoopback;
+use MarinSolutions\CheckybotLaravel\Domain\Monitoring\Foundation\MonitoringFoundationServiceProvider;
+use MarinSolutions\CheckybotLaravel\Domain\Push\PushServiceProvider;
 use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
+use MarinSolutions\CheckybotLaravel\Http\Controllers\Harness\CheckSyncCaptureController;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -19,9 +28,18 @@ class CheckybotLaravelServiceProvider extends PackageServiceProvider
 
     public function packageRegistered(): void
     {
-        // Register CheckRegistry as singleton
-        $this->app->singleton(CheckRegistry::class, function () {
-            return new CheckRegistry;
+        $this->app->register(MonitoringFoundationServiceProvider::class);
+        $this->app->register(AlertingServiceProvider::class);
+        $this->app->register(AgentServiceProvider::class);
+        $this->app->register(AiAnnotationsServiceProvider::class);
+        $this->app->register(ExpandedChecksServiceProvider::class);
+        $this->app->register(PushServiceProvider::class);
+
+        $this->app->singleton(CheckSyncPayloadSerializer::class, fn () => new CheckSyncPayloadSerializer);
+
+        // Registry and config paths share the same canonical serializer boundary.
+        $this->app->singleton(CheckRegistry::class, function ($app) {
+            return new CheckRegistry($app->make(CheckSyncPayloadSerializer::class));
         });
 
         $this->app->singleton(CheckybotClient::class, function ($app) {
@@ -36,7 +54,7 @@ class CheckybotLaravelServiceProvider extends PackageServiceProvider
         });
 
         $this->app->singleton(ConfigValidator::class, function ($app) {
-            return new ConfigValidator;
+            return new ConfigValidator($app->make(CheckSyncPayloadSerializer::class));
         });
     }
 
@@ -44,6 +62,21 @@ class CheckybotLaravelServiceProvider extends PackageServiceProvider
     {
         $this->publishCheckybotRoutes();
         $this->loadCheckybotRoutes();
+        $this->registerHarnessSyncCaptureRoute();
+    }
+
+    /**
+     * Expose the SDK transport receiver only to the canonical loopback runtime.
+     */
+    private function registerHarnessSyncCaptureRoute(): void
+    {
+        if (! $this->app->environment(['testing', 'harness'])) {
+            return;
+        }
+
+        Route::middleware(['api', RequireLoopback::class])
+            ->post('/api/v1/projects/{projectId}/checks/sync', CheckSyncCaptureController::class)
+            ->where('projectId', '[^/]+');
     }
 
     /**
@@ -63,6 +96,9 @@ class CheckybotLaravelServiceProvider extends PackageServiceProvider
      */
     protected function loadCheckybotRoutes(): void
     {
+        require __DIR__.'/../routes/agent.php';
+        require __DIR__.'/../routes/web-dashboard.php';
+
         $routesPath = base_path('routes/checkybot.php');
 
         if (file_exists($routesPath)) {

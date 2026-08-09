@@ -1,0 +1,311 @@
+{
+  "slice_key": "release-hardening",
+  "base_requirements": [
+    "Canvas polish mandate: define and prove the v1 release and handover gates for false-alarm prevention, widget freshness, external watchdog operation, push fallback retirement, fleet rollout, operator documentation, and canonical evidence",
+    "PRD 4.4 and 9.5: Telegram fallback retirement is forbidden until an external watchdog independent of the Checkybot host is live",
+    "PRD 5.1-5.3 and 9.1-9.2: downtime shorter than 30 seconds produces zero notifications, and a real incident produces at most one grouped incident notification plus one grouped recovery",
+    "PRD 5.5 and 9.5: every critical incident remains dual-sent to Expo push and the existing generic legacy webhook until 28 consecutive complete UTC days prove both channels without a failed or missing pair",
+    "PRD 6.1-6.2: final status surfaces expose loading, explicit healthy/empty, error/offline, and last-synced states; the iOS widget always shows age and cannot render data older than 15 minutes as healthy green",
+    "PRD 4.1 and rollout phase 3: handover requires agent v2 fleet inventory, prerequisites, canary waves, scoped token handling, rollback, and accepted one-minute agent-report.v2 evidence",
+    "Canvas integration requirement: the final production-shaped Playwright journey must use real HTTP, a run-scoped SQLite database, the registered relay/jobs, and a real queue worker, then collate reviewable evidence before handover"
+  ],
+  "ownership": {
+    "files": [
+      "docs/release-hardening.md",
+      "docs/watchdog-and-push-retirement.md",
+      ".full-send/canvas-runs/current/handover-checklists",
+      "tests/Feature/ReleaseHardening",
+      "tests/Component/ReleaseHardening"
+    ],
+    "migration_timestamp_range": "none"
+  },
+  "api_contract": [
+    {
+      "route": "GET /api/status-summary",
+      "request": {
+        "headers": {
+          "Accept": "application/json",
+          "Authorization": "Bearer <active ProjectApiToken with status:read>"
+        },
+        "query": {},
+        "validation": "Project identity is derived from the bearer token; a client cannot override it.",
+        "authorization": "Missing or invalid credentials return 401 and an active token without status:read returns 403."
+      },
+      "response": {
+        "200": {
+          "data": {
+            "counts": {
+              "servers": {
+                "healthy": "non-negative integer",
+                "warn": "non-negative integer",
+                "down": "non-negative integer"
+              },
+              "websites": {
+                "healthy": "non-negative integer",
+                "warn": "non-negative integer",
+                "down": "non-negative integer"
+              },
+              "apis": {
+                "healthy": "non-negative integer",
+                "warn": "non-negative integer",
+                "down": "non-negative integer"
+              }
+            },
+            "updated_at": "RFC3339 UTC datetime|null",
+            "stale": "boolean; true when updated_at is null or older than 900 seconds"
+          }
+        },
+        "401": {
+          "message": "Unauthenticated."
+        },
+        "403": {
+          "message": "This token cannot read status summaries."
+        }
+      },
+      "consumed_by": "frontend"
+    },
+    {
+      "route": "POST /__harness/alerting/results",
+      "request": {
+        "availability": "Canonical testing runtime only, loopback-bound, and absent in production",
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "operation_id": "UUID immutable idempotency key",
+          "identity": {
+            "project_uuid": "UUID",
+            "monitor_uuid": "UUID",
+            "type": "server|website|api"
+          },
+          "source": "pull|push",
+          "observed_at": "RFC3339 UTC datetime",
+          "signal": "success|failure for pull; healthy|warn|critical for push",
+          "reason_code": "bounded redacted string|null",
+          "value": "finite number required for push",
+          "thresholds": "push-only ordered warn, critical, and recovery_delta object"
+        },
+        "validation": "The normalized result must satisfy MonitorDomainContracts; an operation_id cannot be rebound to different content.",
+        "authorization": "Harness-only loopback access; no user authentication."
+      },
+      "response": {
+        "202": {
+          "operation_id": "UUID",
+          "status": "queued"
+        },
+        "200": {
+          "operation_id": "UUID",
+          "status": "duplicate"
+        },
+        "422": {
+          "message": "string",
+          "errors": "object keyed by invalid field"
+        }
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "GET /__harness/alerting/receipts/{operation_id}",
+      "request": {
+        "availability": "Canonical testing runtime only, loopback-bound, and absent in production",
+        "path": {
+          "operation_id": "UUID submitted through POST /__harness/alerting/results"
+        },
+        "authorization": "Harness-only loopback access; no user authentication."
+      },
+      "response": {
+        "200": {
+          "operation_id": "UUID",
+          "status": "queued|processed|failed",
+          "current_state": "healthy|warn|down|recovering|null",
+          "transitions": "array conforming to MonitorDomainContracts",
+          "scheduled_retries": "array of RFC3339 due times",
+          "incident_groups": "array of group summaries",
+          "notification_intents": "array conforming to notification-intent.v1"
+        },
+        "404": {
+          "message": "Alerting operation not found."
+        }
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "GET /__harness/push/receipts/{operation_id}",
+      "request": {
+        "availability": "Canonical testing runtime only, loopback-bound, and absent in production",
+        "path": {
+          "operation_id": "notification-intent.v1 operation UUID observed from an alerting receipt"
+        },
+        "authorization": "Harness-only loopback access; no user authentication."
+      },
+      "response": {
+        "200": {
+          "operation_id": "UUID",
+          "listener_status": "queued|processed|failed",
+          "expo_deliveries": "array of redacted device status, ticket, priority, sound, interruption_level, and refresh_widget fields",
+          "legacy_webhook": "accepted|failed|not_required",
+          "reliability_recorded": "boolean",
+          "processed_at": "RFC3339 UTC datetime|null"
+        },
+        "404": {
+          "message": "Push operation not found."
+        }
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "PHP PushReliabilityReadModel::forProject(ProjectIdentity)",
+      "request": {
+        "project_uuid": "authorized UUID",
+        "window": "fixed trailing 28 consecutive UTC days",
+        "authorization": "Internal release-gate read; project identity is already authorized and cannot be overridden."
+      },
+      "response": {
+        "proving_started_at": "RFC3339 UTC datetime|null",
+        "window_ends_at": "RFC3339 UTC datetime|null",
+        "critical_intents": "non-negative integer",
+        "expo_accepted": "non-negative integer",
+        "legacy_webhook_accepted": "non-negative integer",
+        "failed_or_missing_pairs": "non-negative integer",
+        "consecutive_complete_days": "integer from 0 through 28",
+        "retirement_ready": "true only after 28 consecutive complete dual-send UTC days",
+        "last_failure_at": "RFC3339 UTC datetime|null"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "GET {CHECKYBOT_WATCHDOG_URL} (outbound)",
+      "request": {
+        "schedule": "Every minute with overlap prevention",
+        "headers": {
+          "User-Agent": "Checkybot watchdog/<version>"
+        },
+        "body": "none",
+        "configuration": "HTTPS external heartbeat URL supplied by runtime secret configuration; credentials and query values are redacted."
+      },
+      "response": {
+        "success": "Any 2xx response within the configured timeout records a successful independent heartbeat",
+        "failure": "Missing configuration, timeout, transport error, or non-2xx cannot satisfy the handover proof and does not block later scheduled attempts"
+      },
+      "consumed_by": "backend"
+    },
+    {
+      "route": "POST /api/v2/agent-reports",
+      "request": {
+        "headers": {
+          "Accept": "application/json",
+          "Content-Type": "application/json",
+          "Authorization": "Bearer <active ProjectApiToken with agent:report>"
+        },
+        "body": {
+          "schema_version": "literal agent-report.v2",
+          "operation_id": "UUID immutable idempotency key",
+          "agent_version": "semantic version string",
+          "server_uuid": "UUID registered in the token project",
+          "observed_at": "RFC3339 UTC datetime",
+          "reporting_interval_seconds": 60,
+          "cpu": "five-minute percent object",
+          "memory": "used-percent object",
+          "disks": "array of disk samples",
+          "network_interfaces": "array of counter/delta samples",
+          "php_fpm_pools": "array of worker/max_children samples",
+          "nginx_window": "300-second request/5xx/timeout sample",
+          "prerequisites": "array of kind plus readable|missing|permission_denied|disabled|not_configured status",
+          "relevant_log_lines": "optional bounded, already-redacted context"
+        },
+        "validation": "Wrong schema/interval, invalid values, unsafe log content, stale timestamps, or malformed payloads return 422; operation-id content collision returns 409.",
+        "authorization": "Token requires agent:report and server_uuid must belong to its project; cross-project reports return 403."
+      },
+      "response": {
+        "202": {
+          "data": {
+            "operation_id": "UUID",
+            "status": "queued",
+            "server_uuid": "UUID",
+            "evaluation_operation_ids": "array of deterministic UUIDs"
+          }
+        },
+        "200": "The same data shape with status=duplicate for an identical replay",
+        "401": {
+          "message": "Unauthenticated."
+        },
+        "403": {
+          "message": "The token cannot report for this server."
+        },
+        "409": {
+          "message": "The operation_id is already bound to different content."
+        },
+        "422": {
+          "message": "string",
+          "errors": "object keyed by invalid field"
+        }
+      },
+      "consumed_by": "backend"
+    }
+  ],
+  "backend_milestone_items": [
+    {
+      "milestone_key": "backend-release-gates-runbooks",
+      "title": "Release gates, proving-period policy, and operator runbooks",
+      "spec_section_id": "backend-release-gates-runbooks",
+      "ledger_path": ".full-send/canvas-runs/current/slices/release-hardening/milestones/backend-release-gates-runbooks/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/release-hardening/milestones/backend-release-gates-runbooks/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/release-hardening/milestones/backend-release-gates-runbooks/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/release-hardening/milestones/backend-release-gates-runbooks/handoff.md",
+      "contract_excerpt": "Within inherited ownership only, create docs/release-hardening.md and docs/watchdog-and-push-retirement.md plus versioned templates/evidence manifests beneath .full-send/canvas-runs/current/handover-checklists. Add Pest feature/contract tests under tests/Feature/ReleaseHardening that validate evidence against existing alerting, push reliability, external watchdog, and agent-report contracts; do not add or alter product routes, jobs, models, migrations, runtime scripts, or delivery logic. The release checklist is fail-closed: a sub-30-second blip must have zero notification intents and deliveries; a confirmed incident may have one incident plus one recovery; Telegram remains the existing generic legacy webhook and cannot be retired unless the external watchdog has independent live proof and PushReliabilityReadModel reports 28 consecutive complete dual-send UTC days with no failed/missing pair. Fleet evidence must account for every enabled host, agent-report.v2 at 60 seconds, prerequisites and approved exceptions, staged canary waves, scoped token rotation, rollback owner, and restoration proof. Documentation must name evidence owners, expiry/recency rules, rollback triggers, and a no-secret redaction check.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-release-hardening-1",
+          "text": "A Pest release-gate feature test drives a failed pull observation and successful recheck less than 30 seconds later through real POST /__harness/alerting/results requests with the real queue worker and registered relay running, then proves through real alerting and push receipt APIs that zero incident/recovery intents and zero Expo or legacy-webhook deliveries were created."
+        },
+        {
+          "id": "AC-release-hardening-2",
+          "text": "A Pest release-gate feature test drives a confirmed multi-monitor critical incident and full recovery through the real harness APIs and queue worker, then proves exactly one grouped incident intent and one grouped recovery intent share one thread key and that each required critical intent has one deduplicated Expo acceptance and one deduplicated legacy-webhook acceptance."
+        },
+        {
+          "id": "AC-release-hardening-3",
+          "text": "Clock-controlled proving-gate tests prove the Telegram/generic-webhook retirement checklist remains blocked when the external watchdog proof is missing, stale, failed, or dependent on Checkybot, when fewer than 28 consecutive complete UTC days exist, or when any critical Expo/webhook receipt is failed or missing, and becomes signable only when an independent current watchdog proof and retirement_ready=true are both present."
+        },
+        {
+          "id": "AC-release-hardening-4",
+          "text": "Fleet-readiness contract tests prove the handover manifest fails unless every enabled server is inventoried with an accepted agent-report.v2 at a 60-second interval, expected semantic version, readable required nginx/FPM prerequisites, an explicitly approved optional-MySQL exception when applicable, cap confirmation, canary-wave result, scoped-token rotation evidence, rollback owner, and post-rollback heartbeat procedure."
+        },
+        {
+          "id": "AC-release-hardening-5",
+          "text": "Documentation contract tests prove docs/release-hardening.md, docs/watchdog-and-push-retirement.md, and the handover checklist templates define executable commands, pass/fail thresholds, evidence paths, responsible owner and timestamp fields, recency/expiry rules, rollback triggers, the generic-webhook Telegram mapping, fleet rollout ordering, and a check that rejects plaintext tokens, provider credentials, webhook URLs, or unredacted payloads from the evidence bundle."
+        }
+      ]
+    }
+  ],
+  "frontend_milestone_items": [
+    {
+      "milestone_key": "frontend-final-states-runtime-proof",
+      "title": "Final status states and canonical handover journey",
+      "spec_section_id": "frontend-final-states-runtime-proof",
+      "ledger_path": ".full-send/canvas-runs/current/slices/release-hardening/milestones/frontend-final-states-runtime-proof/ledger.md",
+      "manifest_path": ".full-send/canvas-runs/current/slices/release-hardening/milestones/frontend-final-states-runtime-proof/manifest.json",
+      "review_path": ".full-send/canvas-runs/current/slices/release-hardening/milestones/frontend-final-states-runtime-proof/review.md",
+      "handoff_path": ".full-send/canvas-runs/current/slices/release-hardening/milestones/frontend-final-states-runtime-proof/handoff.md",
+      "contract_excerpt": "Within inherited ownership only, add release-level component and Playwright checks under tests/Component/ReleaseHardening and write their completed evidence beneath .full-send/canvas-runs/current/handover-checklists. Exercise the already-owned production mobile, widget, and web components without changing them. Component checks cover first-load, explicit all-healthy/empty, problem, API error/offline with cached last-sync age, and widget stale states. The stale contract is fail-closed at updated_at=null, server stale=true, local age greater than 900 seconds, 401/403, and transport failure; none may expose healthy-green semantics. The canonical Playwright run must build and serve an existing production-shaped web surface, use real HTTP against the run-scoped SQLite runtime, keep the real queue worker running, create both a harmless deploy blip and a confirmed grouped incident through POST /__harness/alerting/results, observe alerting/push receipts and GET /api/status-summary, force the surfaced error/stale path, and collate commit, commands, process/log identifiers, HTTP evidence, screenshots, trace, test summaries, and cleanup into the handover evidence manifest. This slice owns no screen and has no prototype visual-parity requirement.",
+      "acceptance_criteria": [
+        {
+          "id": "AC-release-hardening-6",
+          "text": "Release-level component tests import the production status components and prove first load shows loading, zero warn/down counts show an explicit all-healthy state rather than a blank surface, nonzero warn/down counts show only the expected problems, and a refresh failure shows a persistent error/offline state with the cached summary and last synced age."
+        },
+        {
+          "id": "AC-release-hardening-7",
+          "text": "Clock-controlled widget component checks prove updated age is always visible, data is non-stale through exactly 900 seconds, and updated_at=null, stale=true, local age greater than 900 seconds, 401/403, or transport failure renders the distinct warning/dimmed stale or error treatment with no healthy-green label, accessibility state, or healthy color token."
+        },
+        {
+          "id": "AC-release-hardening-8",
+          "text": "One canonical full-runtime Playwright journey against a built and served production-shaped status surface proves, with the real queue worker running, that a sub-30-second deploy blip creates no push receipt, a confirmed critical group creates deduplicated Expo and legacy-webhook receipts, authenticated GET /api/status-summary updates the surfaced counts, and a forced API failure retains last-synced data in a visibly stale/error state."
+        },
+        {
+          "id": "AC-release-hardening-9",
+          "text": "The canonical journey exits 0 only after writing a handover evidence manifest containing run ID, commit, start/end timestamps, exact commands and endpoint URLs, run-scoped SQLite path, queue-worker start and processed-job proof, alerting/push/status-summary response snapshots, component and Playwright summaries, screenshot/trace/log paths, watchdog and 28-day proving references, fleet inventory reference, secret-scan result, and cleanup proof that no recorded child process remains alive."
+        }
+      ]
+    }
+  ]
+}

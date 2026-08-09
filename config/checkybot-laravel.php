@@ -6,8 +6,10 @@ return [
     | Checkybot API Configuration
     |--------------------------------------------------------------------------
     |
-    | Configure your Checkybot instance URL and authentication credentials.
+    | Configure the authenticated HTTPS API used for check-sync.v1.
     | You must create a project in Checkybot first and obtain the Project ID.
+    | Header/token values cross only this authenticated HTTPS request for
+    | downstream encryption and are masked from package output and diagnostics.
     |
     */
 
@@ -31,7 +33,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | Define your monitoring checks below. Each check must have a unique name
-    | within its type (uptime, ssl, api, dead_links, open_graph). Names are
+    | within its type (uptime, ssl, api, dead_links, open_graph,
+    | domain_expiry, response_time_budget). Names are
     | used to identify checks during sync operations.
     |
     | Common intervals:
@@ -94,7 +97,8 @@ return [
         | Monitor API endpoints and validate JSON responses.
         |
         | Required: name, url, interval
-        | Optional: headers, assertions
+        | Optional: headers, expected_status, max_latency_ms, retry_count,
+        |           ordered status/latency/JSON body assertions
         |
         */
 
@@ -106,12 +110,14 @@ return [
             //     'headers' => [
             //         'Accept' => 'application/json',
             //     ],
+            //     'expected_status' => 200,
+            //     'max_latency_ms' => 750,
             //     'assertions' => [
             //         [
-            //             'data_path' => 'status',
-            //             'assertion_type' => 'exists',
-            //             'sort_order' => 1,
-            //             'is_active' => true,
+            //             'kind' => 'json_path',
+            //             'operator' => 'equals',
+            //             'path' => 'status',
+            //             'operand' => 'healthy',
             //         ],
             //     ],
             // ],
@@ -157,6 +163,27 @@ return [
             //     'url' => env('APP_URL'),
             //     'interval' => '1d',
             //     'required_tags' => ['og:title', 'og:description', 'og:image'],
+            // ],
+        ],
+
+        /* Domain expiry checks default to warning 30 days before expiry. */
+        'domain_expiry' => [
+            // [
+            //     'name' => 'primary-domain-expiry',
+            //     'url' => env('APP_URL'),
+            //     'interval' => '1d',
+            //     'warn_days' => 30,
+            // ],
+        ],
+
+        /* Response-time budgets default to p95 <= 2000 milliseconds. */
+        'response_time_budget' => [
+            // [
+            //     'name' => 'homepage-p95',
+            //     'url' => env('APP_URL'),
+            //     'interval' => '5m',
+            //     'percentile' => 95,
+            //     'budget_ms' => 2000,
             // ],
         ],
     ],

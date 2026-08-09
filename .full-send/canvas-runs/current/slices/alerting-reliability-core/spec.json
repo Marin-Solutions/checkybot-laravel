@@ -1,0 +1,62 @@
+{
+  "slice_key": "alerting-reliability-core",
+  "title": "Trustworthy alerting state machine, grouping, maintenance, and watchdog",
+  "spec_path": ".full-send/canvas-runs/current/slices/alerting-reliability-core/spec.json",
+  "mandate": "Implement the PRD's trust-first alerting core: persisted healthy/degraded/down/recovering transitions, pull-check retry policy, pushed-metric hysteresis, state-transition-only notifications, 30s/5m incident grouping and recovery grouping, global/per-project maintenance mode extending the existing snooze path, deploy API tokens, expiry catch-up, and external heartbeat/watchdog scheduler ping. Own the monitor-result-to-transition queue/outbox wire and grouped notification intent creation; push channel delivery itself remains in the push slice. Verification expectations: feature tests for retries, hysteresis, grouping, maintenance expiry catch-up, watchdog pings, and no <30s deploy false alarms; component tests for alerting state/read components; and a full-runtime Playwright journey through the canonical harness with the queue worker running.",
+  "ownership": {
+    "files": [
+      "app/Domain/Alerting",
+      "app/Domain/Maintenance",
+      "app/Http/Controllers/MaintenanceModeController.php",
+      "app/Jobs/Alerting",
+      "app/Notifications/Alerting",
+      "app/Policies/MaintenanceModePolicy.php",
+      "database/migrations/2026_08_06_010000-2026_08_06_019999",
+      "routes/maintenance.php",
+      "tests/Feature/Alerting",
+      "tests/Feature/MaintenanceMode",
+      "tests/Unit/Alerting"
+    ],
+    "migration_timestamp_range": "2026_08_06_010000-2026_08_06_019999"
+  },
+  "contracts": [
+    {
+      "consumes": "MonitorDomainContracts",
+      "from": "domain-runtime-foundation",
+      "contract": "Uses shared monitor identity, state vocabulary, transition schema, outbox primitives, project token, and redaction contracts."
+    },
+    {
+      "provides": "MonitorResultIngestionInterface",
+      "to": [
+        "agent-v2-expanded-monitors"
+      ],
+      "contract": "Queue-safe interface accepting normalized monitor results/threshold breaches and applying retries or hysteresis before state transitions."
+    },
+    {
+      "provides": "NotificationIntentCreated",
+      "to": [
+        "push-mobile-widget-status"
+      ],
+      "contract": "Outbox event emitted once per grouped incident/recovery with severity, affected monitor identities, notification thread key, and problem-list deep link filter."
+    },
+    {
+      "provides": "IncidentTimelineReadModel",
+      "to": [
+        "web-dashboard-api-builder",
+        "ai-incident-annotations"
+      ],
+      "contract": "Read model of monitor state transitions, durations, group membership, maintenance suppressions, and incident annotations slots."
+    }
+  ],
+  "depends_on": [],
+  "owned_seams": [
+    {
+      "seam_key": "monitor-result-transition",
+      "event_or_interface": "MonitorResultIngestionInterface",
+      "producer_slice": "alerting-reliability-core",
+      "consumer_slice": "agent-v2-expanded-monitors",
+      "owner_slice": "alerting-reliability-core",
+      "wiring": "Alerting-owned queue job ProcessMonitorResult and outbox relay accept normalized result DTOs, apply retry/hysteresis rules, persist transitions, and expose a fake driver for producer slices."
+    }
+  ]
+}

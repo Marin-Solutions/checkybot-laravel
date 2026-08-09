@@ -1,0 +1,1 @@
+{"targets":["backend"],"verification":[{"target":"backend","cwd":".","commands":["composer harness:test:backend","vendor/bin/pest --compact","vendor/bin/pint --test scripts/harness tests/Feature/Harness"]}],"artifacts":["test_results"]}

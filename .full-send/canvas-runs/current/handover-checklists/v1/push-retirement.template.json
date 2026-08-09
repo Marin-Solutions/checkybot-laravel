@@ -1,0 +1,31 @@
+{
+  "contract_version": "push-retirement.v1",
+  "project_uuid": "<project-uuid>",
+  "external_watchdog": {
+    "status": "<success|failure>",
+    "independent": false,
+    "depends_on_checkybot": true,
+    "checked_at": "<RFC3339-UTC>",
+    "expires_at": "<RFC3339-UTC; checked_at plus 5 minutes>",
+    "evidence_path": "evidence/<run-id>/watchdog.json"
+  },
+  "push_reliability": {
+    "proving_started_at": "<RFC3339-UTC>",
+    "window_ends_at": "<RFC3339-UTC>",
+    "critical_intents": 0,
+    "expo_accepted": 0,
+    "legacy_webhook_accepted": 0,
+    "failed_or_missing_pairs": 0,
+    "consecutive_complete_days": 0,
+    "retirement_ready": false,
+    "last_failure_at": null,
+    "evidence_path": "evidence/<run-id>/push-reliability.json"
+  },
+  "telegram_mapping": "existing generic legacy webhook",
+  "responsible_owner": "<release-manager>",
+  "infrastructure_owner": "<infrastructure-owner>",
+  "signed_at": "<RFC3339-UTC>",
+  "rollback_trigger": "watchdog stale/failed, Expo failed/missing, or delivery configuration changed",
+  "rollback_owner": "<rollback-owner>",
+  "restoration_evidence_path": "evidence/<run-id>/push-fallback-restoration.json"
+}

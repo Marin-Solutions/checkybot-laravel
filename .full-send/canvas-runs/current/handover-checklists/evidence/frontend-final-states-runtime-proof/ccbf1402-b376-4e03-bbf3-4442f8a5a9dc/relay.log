@@ -1,0 +1,9 @@
+[2026-08-08T00:12:27.811Z] $ php /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/scripts/harness/artisan checkybot:foundation-relay --limit=1000 --no-interaction
+[32mRelayed 2 foundation event(s).[39m
+[2026-08-08T00:12:28.062Z] exit=0
+[2026-08-08T00:12:46.423Z] $ php /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/scripts/harness/artisan checkybot:foundation-relay --limit=1000 --no-interaction
+[32mRelayed 5 foundation event(s).[39m
+[2026-08-08T00:12:46.796Z] exit=0
+[2026-08-08T00:12:48.400Z] $ php /home/ploi/workspaces/agent-canvas-b1631f73-b32f-4463-ae9b-0633a2a40625-checkybot-laravel/scripts/harness/artisan checkybot:foundation-relay --limit=1000 --no-interaction
+[32mRelayed 0 foundation event(s).[39m
+[2026-08-08T00:12:48.602Z] exit=0

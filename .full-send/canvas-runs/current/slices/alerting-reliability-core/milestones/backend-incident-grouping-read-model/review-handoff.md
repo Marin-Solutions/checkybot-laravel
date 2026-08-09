@@ -1,0 +1,1 @@
+Review approved for backend-incident-grouping-read-model. All AC-alerting-reliability-core-6 through AC-alerting-reliability-core-10 passed with re-run Pest, PHPStan, Pint, and full-runtime Playwright evidence through a real queue worker. Review artifact: .full-send/canvas-runs/current/slices/alerting-reliability-core/milestones/backend-incident-grouping-read-model/review.md

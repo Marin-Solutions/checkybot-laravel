@@ -1,0 +1,41 @@
+{
+  "contract_version": "release-hardening-verification.v1",
+  "task_uuid": "f6b32cd0-fea0-4788-9159-f949bae3c246",
+  "milestone": "backend-release-gates-runbooks",
+  "commit": "c42c21e85745377fd82cc8fd12714da19c130d02",
+  "completed_at": "2026-08-07T23:46:50Z",
+  "responsible_owner": "backend-release-gates-runbooks agent",
+  "database_safety": {
+    "connection": "sqlite",
+    "scope": "UUID run directory beneath build/harness-runs or per-test SQLite beneath build/release-hardening-tests",
+    "destructive_commands_run": false
+  },
+  "verification": [
+    {
+      "command": "./vendor/bin/pest tests/Feature/ReleaseHardening --compact",
+      "exit_code": 0,
+      "tests": 7,
+      "assertions": 188,
+      "evidence_path": "build/release-hardening/targeted-pest.log"
+    },
+    {
+      "command": "./vendor/bin/pint --test tests/Feature/ReleaseHardening",
+      "exit_code": 0,
+      "evidence_path": "build/release-hardening/pint.log"
+    },
+    {
+      "command": "./vendor/bin/pest --compact",
+      "exit_code": 0,
+      "tests": 357,
+      "assertions": 2446,
+      "evidence_path": "build/release-hardening/full-pest.log"
+    }
+  ],
+  "secret_scan": {
+    "result": "passed",
+    "plaintext_tokens": 0,
+    "provider_credentials": 0,
+    "webhook_urls": 0,
+    "unredacted_payloads": 0
+  }
+}

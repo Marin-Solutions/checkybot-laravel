@@ -1,0 +1,8 @@
+{
+  "expo": {
+    "name": "Checkybot Release Status",
+    "slug": "checkybot-release-status-runtime",
+    "version": "1.0.0",
+    "web": { "bundler": "metro" }
+  }
+}
