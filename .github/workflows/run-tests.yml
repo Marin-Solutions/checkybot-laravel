@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ (!startsWith(matrix.os, 'ubuntu') || github.event.pull_request.head.repo.fork) && matrix.os || fromJSON('["self-hosted","ci","github-actions"]') }}
     timeout-minutes: 5
     strategy:
       fail-fast: true
