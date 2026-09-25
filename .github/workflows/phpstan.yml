@@ -10,7 +10,7 @@ on:
 jobs:
   phpstan:
     name: phpstan
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-24.04' || fromJSON('["self-hosted","ci","github-actions"]') }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
