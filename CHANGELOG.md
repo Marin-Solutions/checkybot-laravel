@@ -2,6 +2,10 @@
 
 All notable changes to `checkybot-laravel` will be documented in this file.
 
+## v0.2.2 - 2026-10-11
+
+checkybot:sync sends the declared checks as a full manifest, so Checkybot removes checks that are no longer declared. New --force-prune option confirms a sync that Checkybot refuses as a mass removal (more than 10 checks and more than 20% of one type).
+
 ## Unreleased
 
 - Sends the canonical `check-sync.v1` body with uptime, SSL, API, dead-link, OpenGraph, domain-expiry, and response-time-budget arrays.
