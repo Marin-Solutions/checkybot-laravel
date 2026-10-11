@@ -11,7 +11,8 @@ use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
 class CheckybotCommand extends Command
 {
     public $signature = 'checkybot:sync
-                        {--dry-run : Show what would be synced without actually syncing}';
+                        {--dry-run : Show what would be synced without actually syncing}
+                        {--force-prune : Confirm a sync that removes many no longer declared checks}';
 
     public $description = 'Sync monitoring checks with CheckyBot platform';
 
@@ -61,7 +62,12 @@ class CheckybotCommand extends Command
         try {
             /** @var CheckybotClient $client */
             $client = app(CheckybotClient::class);
-            $response = $client->syncChecks($payload);
+            // The declared checks are the complete list for this project, so
+            // Checkybot removes package checks that are no longer declared.
+            $response = $client->syncChecks([
+                'full_manifest' => true,
+                'force_prune' => (bool) $this->option('force-prune'),
+            ] + $payload);
 
             $this->displaySyncResults($response['summary'] ?? []);
 
