@@ -534,6 +534,8 @@ php artisan checkybot:sync
 php artisan checkybot:sync --dry-run
 ```
 
+`checkybot:sync` sends the declared checks as the complete list (`full_manifest`). Checkybot removes package checks that are no longer declared. Checkybot refuses a sync that would remove more than 10 checks and more than 20% of one check type; review the dry run, then confirm such a cleanup with `php artisan checkybot:sync --force-prune`.
+
 ## Troubleshooting
 
 ### "CHECKYBOT_API_KEY is not configured"

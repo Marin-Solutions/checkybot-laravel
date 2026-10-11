@@ -4,6 +4,7 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use MarinSolutions\CheckybotLaravel\Http\CheckybotClient;
@@ -660,4 +661,38 @@ it('syncs with all five check types populated', function () {
         ->expectsOutputToContain('Found 5 checks to sync')
         ->expectsOutputToContain('Sync completed successfully')
         ->assertExitCode(0);
+});
+
+it('sends the declared checks as a full manifest', function () {
+    config([
+        'checkybot-laravel.api_key' => 'test-key',
+        'checkybot-laravel.project_id' => '1',
+        'checkybot-laravel.base_url' => 'https://checkybot.com',
+        'checkybot-laravel.checks' => [
+            'uptime' => [
+                ['name' => 'homepage', 'url' => 'https://example.com', 'interval' => '5m'],
+            ],
+        ],
+    ]);
+
+    $history = [];
+    $handlerStack = HandlerStack::create(new MockHandler([
+        new Response(200, [], json_encode(['summary' => []])),
+    ]));
+    $handlerStack->push(Middleware::history($history));
+
+    $this->app->instance(CheckybotClient::class, new CheckybotClient(
+        baseUrl: 'https://checkybot.com',
+        apiKey: 'test-key',
+        projectId: '1',
+        client: new Client(['handler' => $handlerStack])
+    ));
+
+    $this->artisan('checkybot:sync')->assertExitCode(0);
+
+    $payload = json_decode((string) $history[0]['request']->getBody(), true);
+
+    expect($payload['full_manifest'])->toBeTrue()
+        ->and($payload['force_prune'])->toBeFalse()
+        ->and($payload['uptime_checks'][0]['name'])->toBe('homepage');
 });
