@@ -2,7 +2,7 @@
 
 Operator steps to roll the Checkybot server agent v2 out to a fleet: preflight, canary, fleet rollout, token rotation, inventory and rollback.
 
-The agent sends one report every interval to `POST /api/v2/agent-reports` (`routes/agent.php`). A report carries a `prerequisites` list. Each entry has a `kind` (`nginx_access_log`, `nginx_error_log`, `php_fpm_status`, `php_fpm_log`, `mysql_log`) and a `status` (`readable`, `missing`, `permission_denied`, `disabled`, `not_configured`). Fix every prerequisite that is not `readable` before you enable a server.
+The agent sends one report every interval to `POST /api/v2/agent-reports` (`routes/agent.php`). A report carries a `prerequisites` list. Each entry has a `kind` (`nginx_access_log`, `nginx_error_log`, `php_fpm_status`, `php_fpm_log`, `mysql_log`) and a `status` (`readable`, `missing`, `permission_denied`, `disabled`, `not_configured`). Before you enable a server, make `nginx_access_log` and `php_fpm_status` `readable`: the evaluator warns without them. The other sources are optional (see section 7).
 
 Set these shell variables once per host. The paths depend on how you installed the agent:
 

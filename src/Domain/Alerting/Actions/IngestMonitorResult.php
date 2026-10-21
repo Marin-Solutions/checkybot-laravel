@@ -26,6 +26,8 @@ final readonly class IngestMonitorResult implements MonitorResultIngestionInterf
         $created = false;
 
         for ($attempt = 1; ; $attempt++) {
+            // A failed commit can follow the insert; only a committed insert counts.
+            $created = false;
             try {
                 DB::transaction(function () use ($result, $hash, &$created): void {
                     $existing = AlertingResult::query()->where('operation_id', $result->operationId)->first();
@@ -54,7 +56,14 @@ final readonly class IngestMonitorResult implements MonitorResultIngestionInterf
 
                 break;
             } catch (QueryException $exception) {
-                $existing = AlertingResult::query()->where('operation_id', $result->operationId)->first();
+                try {
+                    $existing = AlertingResult::query()->where('operation_id', $result->operationId)->first();
+                } catch (QueryException $readException) {
+                    if (! $this->isLocked($readException)) {
+                        throw $readException;
+                    }
+                    $existing = null;
+                }
                 if ($existing !== null) {
                     $this->assertSamePayload($existing, $hash);
 
@@ -63,7 +72,7 @@ final readonly class IngestMonitorResult implements MonitorResultIngestionInterf
                 // SQLite answers two read-then-write transactions with "database is locked"
                 // and Laravel does not retry that. Give the winner time to commit, then the
                 // next attempt sees its row.
-                if ($attempt < self::LOCKED_ATTEMPTS && str_contains($exception->getMessage(), 'database is locked')) {
+                if ($attempt < self::LOCKED_ATTEMPTS && $this->isLocked($exception)) {
                     usleep(self::LOCKED_BACKOFF_MICROSECONDS * $attempt);
 
                     continue;
@@ -78,6 +87,11 @@ final readonly class IngestMonitorResult implements MonitorResultIngestionInterf
         }
 
         return new IngestionReceipt($created, $result->operationId, $created ? 'queued' : 'duplicate');
+    }
+
+    private function isLocked(QueryException $exception): bool
+    {
+        return str_contains($exception->getMessage(), 'database is locked');
     }
 
     private function assertSamePayload(AlertingResult $existing, string $hash): void
