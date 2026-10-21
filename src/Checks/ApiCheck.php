@@ -49,6 +49,10 @@ class ApiCheck extends BaseCheck
 
     protected ?int $retryCount = null;
 
+    protected ?string $sourceUrl = null;
+
+    protected ?string $sourcePath = null;
+
     /**
      * Response assertions.
      *
@@ -150,6 +154,41 @@ class ApiCheck extends BaseCheck
             'operator' => 'less_than_or_equal',
             'operand' => $milliseconds,
         ]);
+
+        return $this;
+    }
+
+    /**
+     * Read one value from a source request and use it in this check.
+     *
+     * Checkybot first sends a GET request to the source URL with the same
+     * headers, reads the value at the JSON path, and replaces every
+     * `{source}` in the check URL (URL-encoded) and in assertion expected
+     * values (raw). Use it to monitor a detail endpoint with an item that a
+     * fresh search returns, instead of a pinned id that can disappear.
+     *
+     * @return $this
+     *
+     * @example
+     * ```php
+     * Checkybot::api('job-detail')
+     *     ->source('https://example.com/api/jobs/search?query=developer', 'data.jobs.0.id')
+     *     ->url('https://example.com/api/jobs/job?id={source}')
+     *     ->expect('data.job.id')->toEqual('{source}');
+     * ```
+     */
+    public function source(string $url, string $path): self
+    {
+        if (trim($url) === '') {
+            throw new InvalidArgumentException('Source URL must not be empty.');
+        }
+
+        if (trim($path) === '') {
+            throw new InvalidArgumentException('Source path must not be empty.');
+        }
+
+        $this->sourceUrl = $url;
+        $this->sourcePath = $path;
 
         return $this;
     }
@@ -275,6 +314,11 @@ class ApiCheck extends BaseCheck
 
         if ($this->retryCount !== null) {
             $data['retry_count'] = $this->retryCount;
+        }
+
+        if ($this->sourceUrl !== null) {
+            $data['source_url'] = $this->sourceUrl;
+            $data['source_path'] = $this->sourcePath;
         }
 
         if (! empty($this->assertions)) {

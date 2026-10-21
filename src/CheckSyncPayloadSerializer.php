@@ -166,7 +166,7 @@ final class CheckSyncPayloadSerializer
         $keys = match ($type) {
             'uptime' => ['name', 'url', 'interval', 'max_redirects', 'headers'],
             'ssl' => ['name', 'url', 'interval'],
-            'api' => ['name', 'url', 'interval', 'headers', 'expected_status', 'max_latency_ms', 'retry_count'],
+            'api' => ['name', 'url', 'interval', 'headers', 'expected_status', 'max_latency_ms', 'retry_count', 'source_url', 'source_path'],
             'dead_links' => ['name', 'url', 'interval', 'max_depth', 'exclude_paths', 'headers'],
             'open_graph' => ['name', 'url', 'interval', 'required_tags', 'headers'],
             'domain_expiry' => ['name', 'url', 'interval', 'warn_days'],

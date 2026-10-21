@@ -96,6 +96,29 @@ class ConfigValidator
     }
 
     /** @param array<string, mixed> $check @param array<mixed> $errors */
+    private function validateSource(array $check, string $name, array &$errors): void
+    {
+        $sourceUrl = $check['source_url'] ?? null;
+        $sourcePath = $check['source_path'] ?? null;
+
+        if ($sourceUrl === null && $sourcePath === null) {
+            return;
+        }
+
+        if (! is_string($sourceUrl) || ! $this->isValidUrl($sourceUrl)) {
+            $errors[] = "Check '{$name}' has an invalid source URL";
+        }
+
+        if (! is_string($sourcePath) || trim($sourcePath) === '') {
+            $errors[] = "Check '{$name}' is missing a source path";
+        }
+
+        if (! is_string($check['url'] ?? null) || ! str_contains($check['url'], '{source}')) {
+            $errors[] = "Check '{$name}' uses a source but its URL has no {source} placeholder";
+        }
+    }
+
+    /** @param array<string, mixed> $check @param array<mixed> $errors */
     private function validateTypeOptions(string $type, string $name, array $check, array &$errors): void
     {
         if ($type === 'domain_expiry' && array_key_exists('warn_days', $check)) {
@@ -124,6 +147,8 @@ class ConfigValidator
         if (array_key_exists('retry_count', $check)) {
             $this->boundedInteger($check['retry_count'], 0, 10, "Check '{$name}' retry_count", $errors);
         }
+
+        $this->validateSource($check, $name, $errors);
 
         $assertions = $check['assertions'] ?? [];
         if (! is_array($assertions) || ! array_is_list($assertions)) {
