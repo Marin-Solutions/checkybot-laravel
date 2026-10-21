@@ -224,7 +224,11 @@ it('proves one grouped critical incident and recovery are dual-sent exactly once
     $incidentPush = awaitReleaseGateJson(
         $client,
         '/__harness/push/receipts/'.$incidentIntent['operation_id'],
-        static fn (array $body): bool => ($body['listener_status'] ?? null) === 'processed',
+        // "processed" only means fanned out; the Expo and legacy webhook deliveries run as later jobs.
+        static fn (array $body): bool => ($body['listener_status'] ?? null) === 'processed'
+            && ($body['legacy_webhook'] ?? null) === 'accepted'
+            && ($body['reliability_recorded'] ?? false) === true
+            && ($body['expo_deliveries'][0]['status'] ?? null) === 'accepted',
     );
 
     $recoveryPayloads = [];
@@ -248,7 +252,11 @@ it('proves one grouped critical incident and recovery are dual-sent exactly once
     $recoveryPush = awaitReleaseGateJson(
         $client,
         '/__harness/push/receipts/'.$recoveryIntent['operation_id'],
-        static fn (array $body): bool => ($body['listener_status'] ?? null) === 'processed',
+        // "processed" only means fanned out; the Expo and legacy webhook deliveries run as later jobs.
+        static fn (array $body): bool => ($body['listener_status'] ?? null) === 'processed'
+            && ($body['legacy_webhook'] ?? null) === 'accepted'
+            && ($body['reliability_recorded'] ?? false) === true
+            && ($body['expo_deliveries'][0]['status'] ?? null) === 'accepted',
     );
 
     // Replaying accepted results and the relay must converge on the immutable operations.
