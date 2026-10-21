@@ -232,7 +232,7 @@ it('processes early-clear and duplicate concurrent expiry claims through real qu
 
     expect($raceMode->fresh()->catch_up_claimed_at)->not->toBeNull()
         ->and(NotificationIntent::query()->where('project_id', $raceProject)->count())->toBe(1)
-        ->and(DB::table('jobs')->count())->toBe(0);
+        ->and(DB::table('jobs')->count())->toBe(0, 'Jobs left: '.DB::table('jobs')->get(['queue', 'attempts', 'payload'])->map(fn (object $job): string => $job->queue.' attempts='.$job->attempts.' '.(json_decode((string) $job->payload, true)['displayName'] ?? '?'))->implode('; '));
 
     expect(Artisan::call('checkybot:foundation-relay'))->toBe(0);
     $relayWorker = maintenanceQueueWorker($this->maintenanceQueueDatabase);

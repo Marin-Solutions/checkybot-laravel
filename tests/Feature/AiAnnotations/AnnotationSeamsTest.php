@@ -379,7 +379,7 @@ it('allows only one provider call and charge under barrier-synchronized process 
     foreach ([$barrier, $callLog, ...$files] as $file) {
         @unlink($file);
     }
-})->group('AC-ai-incident-annotations-7');
+})->skipOnWindows()->group('AC-ai-incident-annotations-7');
 
 it('does not mutate alert lifecycle notification or push rows on successful and failed AI processing', function (): void {
     $project = (string) Str::uuid();

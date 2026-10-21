@@ -367,5 +367,5 @@ it('runs all scheduled job types through real workers and deduplicates overlappi
         ->and(ExpandedCheckEvaluation::query()->where('expanded_website_monitor_id', $disabledResponse->getKey())->count())->toBe(0)
         ->and(MonitorState::query()->count())->toBe(2)
         ->and(MonitorTransition::query()->count())->toBe(0)
-        ->and(DB::table('jobs')->count())->toBe(0);
+        ->and(DB::table('jobs')->count())->toBe(0, 'Jobs left: '.DB::table('jobs')->get(['queue', 'attempts', 'payload'])->map(fn (object $job): string => $job->queue.' attempts='.$job->attempts.' '.(json_decode((string) $job->payload, true)['displayName'] ?? '?'))->implode('; '));
 })->group('AC-agent-v2-expanded-monitors-13');

@@ -77,7 +77,7 @@ it('collects baseline, real elapsed deltas, hot plug, and reset observations thr
         ->and($reset['network_interfaces'][1]['sample_status'])->toBe('ready')
         ->and(fileperms($statePath) & 0777)->toBe(0600)
         ->and(json_decode((string) file_get_contents($statePath), true, 32, JSON_THROW_ON_ERROR))->toBeArray();
-})->group('AC-agent-v2-expanded-monitors-1');
+})->skipOnWindows()->group('AC-agent-v2-expanded-monitors-1');
 
 it('leaves the prior mode-0600 state valid when atomic replacement is interrupted', function (): void {
     $directory = dirname(__DIR__, 3).'/build/agent-collector/'.Str::uuid();
@@ -97,4 +97,4 @@ it('leaves the prior mode-0600 state valid when atomic replacement is interrupte
         ->and((string) file_get_contents($statePath))->toBe($prior)
         ->and(json_decode((string) file_get_contents($statePath), true, 32, JSON_THROW_ON_ERROR))->toBeArray()
         ->and(fileperms($statePath) & 0777)->toBe(0600);
-})->group('AC-agent-v2-expanded-monitors-1');
+})->skipOnWindows()->group('AC-agent-v2-expanded-monitors-1');

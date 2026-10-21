@@ -8,6 +8,7 @@ use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
 use MarinSolutions\CheckybotLaravel\Domain\ExpandedChecks\Contracts\DomainExpiryLookup;
 use MarinSolutions\CheckybotLaravel\Tests\Feature\ExpandedChecks\Support\FileSequenceDomainExpiryLookup;
+use MarinSolutions\CheckybotLaravel\Tests\Support\SqliteWriteLockOnBegin;
 use Symfony\Component\Console\Input\ArgvInput;
 
 $root = dirname(__DIR__, 4);
@@ -51,5 +52,7 @@ if ($barrier !== '' && $ready !== '') {
         exit(70);
     }
 }
+
+SqliteWriteLockOnBegin::register($app);
 
 exit($app->handleCommand(new ArgvInput));

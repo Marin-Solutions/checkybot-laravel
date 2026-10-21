@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\DB;
+use MarinSolutions\CheckybotLaravel\Tests\Support\SqliteWriteLockOnBegin;
 use MarinSolutions\CheckybotLaravel\Tests\TestCase;
 
 if ($argc !== 3) {
@@ -53,6 +54,7 @@ $app['config']->set('queue.connections.database', [
 ]);
 DB::purge('sqlite');
 
+SqliteWriteLockOnBegin::register($app);
 exit($app->make(Kernel::class)->call('queue:work', [
     'connection' => 'database',
     '--stop-when-empty' => true,

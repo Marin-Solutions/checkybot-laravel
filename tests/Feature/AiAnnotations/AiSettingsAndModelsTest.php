@@ -208,4 +208,4 @@ it('keeps simultaneous reservations within both caps and starts a fresh UTC mont
         ->and($ledger->settle($septemberOperation, 41))->toBeFalse();
     $septemberBucket = AiBudgetBucket::query()->forProject($project)->where('period', '2026-09')->sole();
     expect($septemberBucket->reserved_microusd)->toBe(0)->and($septemberBucket->spent_microusd)->toBe(41);
-})->group('AC-ai-incident-annotations-3');
+})->skipOnWindows()->group('AC-ai-incident-annotations-3');

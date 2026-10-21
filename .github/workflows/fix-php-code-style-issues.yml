@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - '**.php'
+      - '.github/workflows/fix-php-code-style-issues.yml'
 
 permissions:
   contents: write
@@ -19,8 +20,19 @@ jobs:
         with:
           ref: ${{ github.head_ref }}
 
+      # The Pint Docker action cannot mount its temp directory on the self-hosted
+      # runners, so run Pint from the project's own dependencies.
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: 8.4
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
       - name: Fix PHP code style issues
-        uses: aglipanci/laravel-pint-action@2.6
+        run: vendor/bin/pint
 
       - name: Commit changes
         uses: stefanzweifel/git-auto-commit-action@v7

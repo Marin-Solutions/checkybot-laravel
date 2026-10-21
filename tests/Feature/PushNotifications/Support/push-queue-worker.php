@@ -5,6 +5,7 @@ declare(strict_types=1);
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\DB;
+use MarinSolutions\CheckybotLaravel\Tests\Support\SqliteWriteLockOnBegin;
 use MarinSolutions\CheckybotLaravel\Tests\TestCase;
 
 if ($argc !== 6) {
@@ -78,4 +79,5 @@ $options = [
 ];
 $options[$mode === 'once' ? '--once' : '--stop-when-empty'] = true;
 
+SqliteWriteLockOnBegin::register($app);
 exit($app->make(Kernel::class)->call('queue:work', $options));

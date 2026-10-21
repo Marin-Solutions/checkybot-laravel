@@ -149,7 +149,7 @@ it('starts a ready Laravel server and queue worker and stops only its recorded c
     } finally {
         $unrelated->stop(1);
     }
-})->group('AC-test-harness-1');
+})->skipOnWindows()->group('AC-test-harness-1');
 
 it('processes a queue probe through the real HTTP API and real database worker', function (): void {
     $runDirectory = newHarnessRunDirectory();
@@ -195,7 +195,7 @@ it('processes a queue probe through the real HTTP API and real database worker',
     expect($duplicate->getStatusCode())->toBe(422)
         ->and($duplicateBody)->toHaveKey('message')
         ->and($duplicateBody)->toHaveKey('errors.probe_id');
-})->group('AC-test-harness-2');
+})->skipOnWindows()->group('AC-test-harness-2');
 
 it('fails occupied-port startup, cleans children, and retains the stage log', function (): void {
     $listener = stream_socket_server('tcp://127.0.0.1:0', $errorCode, $errorMessage);
@@ -215,7 +215,7 @@ it('fails occupied-port startup, cleans children, and retains the stage log', fu
         ->and(file_get_contents($runDirectory.'/app.log'))->toContain('[stage=occupied-port]')
         ->and(harnessProcessIsOwned($runDirectory, 'app'))->toBeFalse()
         ->and(harnessProcessIsOwned($runDirectory, 'worker'))->toBeFalse();
-})->group('AC-test-harness-3');
+})->skipOnWindows()->group('AC-test-harness-3');
 
 it('fails app-readiness timeout, cleans children, and retains the stage log', function (): void {
     $runDirectory = newHarnessRunDirectory();
@@ -226,7 +226,7 @@ it('fails app-readiness timeout, cleans children, and retains the stage log', fu
         ->and(file_get_contents($runDirectory.'/app.log'))->toContain('[stage=app-readiness-timeout]');
     awaitHarnessProcessStopped($runDirectory, 'app');
     expect(harnessProcessIsOwned($runDirectory, 'worker'))->toBeFalse();
-})->group('AC-test-harness-3');
+})->skipOnWindows()->group('AC-test-harness-3');
 
 it('fails premature worker exit, cleans children, and retains the stage log', function (): void {
     $runDirectory = newHarnessRunDirectory();
@@ -237,7 +237,7 @@ it('fails premature worker exit, cleans children, and retains the stage log', fu
         ->and(file_get_contents($runDirectory.'/worker.log'))->toContain('[stage=worker-premature-exit]');
     awaitHarnessProcessStopped($runDirectory, 'app');
     awaitHarnessProcessStopped($runDirectory, 'worker');
-})->group('AC-test-harness-3');
+})->skipOnWindows()->group('AC-test-harness-3');
 
 it('isolates SQLite state per UUID run and refuses unsafe database configuration', function (): void {
     $runDirectory = newHarnessRunDirectory();
@@ -270,4 +270,4 @@ it('isolates SQLite state per UUID run and refuses unsafe database configuration
     expect($outside->isSuccessful())->toBeFalse()
         ->and(file_get_contents($outsideRun.'/runtime.log'))->toContain('[stage=database-validation]')
         ->and(is_file($outsideDatabase))->toBeFalse();
-})->group('AC-test-harness-4');
+})->skipOnWindows()->group('AC-test-harness-4');

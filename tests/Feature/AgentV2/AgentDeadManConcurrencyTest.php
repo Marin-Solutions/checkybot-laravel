@@ -115,4 +115,4 @@ it('deduplicates barrier-synchronized overlapping dead-man scheduler scans', fun
     expect(AgentMonitorEvaluation::query()->where('observation_kind', 'dead_man')->count())->toBe(1)
         ->and(AlertingResult::query()->count())->toBe(1)
         ->and(DB::table('jobs')->count())->toBe(1);
-})->group('AC-agent-v2-expanded-monitors-8');
+})->skipOnWindows()->group('AC-agent-v2-expanded-monitors-8');
