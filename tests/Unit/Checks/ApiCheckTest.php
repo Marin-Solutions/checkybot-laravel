@@ -378,3 +378,7 @@ it('converts to array with all fields', function () {
         ->and($array['headers'])->toBe(['Authorization' => 'Bearer token'])
         ->and($array['assertions'])->toHaveCount(1);
 });
+
+it('refuses an empty source path', function () {
+    (new ApiCheck('job'))->source('https://example.com/search', ' ');
+})->throws(InvalidArgumentException::class, 'Source path must not be empty.');

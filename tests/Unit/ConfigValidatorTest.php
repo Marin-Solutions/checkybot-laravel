@@ -436,3 +436,53 @@ it('validates all registry check fields across types', function () {
         ->and($result['errors'])->toContain("Check 'bad-ssl' is missing a URL")
         ->and($result['errors'])->toContain("Check 'bad-links' is missing an interval");
 });
+
+it('accepts an api check that reads its id from a source request', function () {
+    $registry = new CheckRegistry;
+    $registry->api('job-detail')
+        ->source('https://example.com/api/jobs/search?query=developer', 'data.jobs.0.id')
+        ->url('https://example.com/api/jobs/job?id={source}')
+        ->every('30m')
+        ->expect('data.job.id')->toEqual('{source}');
+
+    $result = $this->validator->validateWithRegistry(['api_key' => 'key', 'project_id' => '1'], $registry);
+
+    expect($result['valid'])->toBeTrue()
+        ->and($registry->getApiChecks()[0]->toArray())->toMatchArray([
+            'url' => 'https://example.com/api/jobs/job?id={source}',
+            'source_url' => 'https://example.com/api/jobs/search?query=developer',
+            'source_path' => 'data.jobs.0.id',
+        ]);
+});
+
+it('rejects a source check whose url has no placeholder', function () {
+    $registry = new CheckRegistry;
+    $registry->api('job-detail')
+        ->source('https://example.com/api/jobs/search', 'data.jobs.0.id')
+        ->url('https://example.com/api/jobs/job?id=1')
+        ->every('30m');
+
+    $result = $this->validator->validateWithRegistry(['api_key' => 'key', 'project_id' => '1'], $registry);
+
+    expect($result['valid'])->toBeFalse()
+        ->and($result['errors'])->toContain("Check 'job-detail' uses a source but its URL has no {source} placeholder");
+});
+
+it('rejects a source with an invalid url', function () {
+    $registry = new CheckRegistry;
+    $registry->api('job-detail')
+        ->source('not a url', 'data.jobs.0.id')
+        ->url('https://example.com/api/jobs/job?id={source}')
+        ->every('30m');
+
+    $result = $this->validator->validateWithRegistry(['api_key' => 'key', 'project_id' => '1'], $registry);
+
+    expect($result['errors'])->toContain("Check 'job-detail' has an invalid source URL");
+});
+
+it('sends no source fields for a plain api check', function () {
+    $registry = new CheckRegistry;
+    $registry->api('health')->url('https://example.com/api/health')->every('5m');
+
+    expect($registry->getApiChecks()[0]->toArray())->not->toHaveKeys(['source_url', 'source_path']);
+});
