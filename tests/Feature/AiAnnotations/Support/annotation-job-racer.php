@@ -11,6 +11,7 @@ use MarinSolutions\CheckybotLaravel\Domain\AiAnnotations\Contracts\AiAnnotationP
 use MarinSolutions\CheckybotLaravel\Domain\AiAnnotations\Data\ProviderRequest;
 use MarinSolutions\CheckybotLaravel\Domain\AiAnnotations\Data\ProviderResult;
 use MarinSolutions\CheckybotLaravel\Domain\AiAnnotations\Models\AiAnnotationOperation;
+use MarinSolutions\CheckybotLaravel\Tests\Support\SqliteWriteLockOnBegin;
 
 if ($argc !== 8) {
     fwrite(STDERR, "Usage: annotation-job-racer.php <root> <barrier> <ready> <result> <operation> <call-log> <worker>\n");
@@ -56,6 +57,7 @@ if (! is_file($barrier)) {
     exit(70);
 }
 
+SqliteWriteLockOnBegin::register($app);
 try {
     $exit = $app->make(Kernel::class)->call('queue:work', [
         'connection' => 'database', '--once' => true, '--tries' => 1,

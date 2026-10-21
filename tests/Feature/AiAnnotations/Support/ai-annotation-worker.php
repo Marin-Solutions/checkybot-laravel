@@ -12,6 +12,7 @@ use MarinSolutions\CheckybotLaravel\Domain\AiAnnotations\Contracts\AiAnnotationP
 use MarinSolutions\CheckybotLaravel\Domain\AiAnnotations\Data\ProviderFailureCode;
 use MarinSolutions\CheckybotLaravel\Domain\AiAnnotations\Data\ProviderRequest;
 use MarinSolutions\CheckybotLaravel\Domain\AiAnnotations\Data\ProviderResult;
+use MarinSolutions\CheckybotLaravel\Tests\Support\SqliteWriteLockOnBegin;
 use MarinSolutions\CheckybotLaravel\Tests\TestCase;
 
 if ($argc !== 6) {
@@ -110,6 +111,7 @@ $app->bind(AiAnnotationProvider::class, static fn (): AiAnnotationProvider => ne
     }
 });
 
+SqliteWriteLockOnBegin::register($app);
 exit($app->make(Kernel::class)->call('queue:work', [
     'connection' => 'database', '--stop-when-empty' => true, '--sleep' => 1,
     '--tries' => 1, '--timeout' => 15, '--no-interaction' => true,
