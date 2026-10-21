@@ -2,6 +2,10 @@
 
 All notable changes to `checkybot-laravel` will be documented in this file.
 
+## v0.2.3 - 2026-10-21
+
+Add `ApiCheck::source(url, path)` for chained API checks. The server replaces `{source}` in the check URL and assertion expected values with a value read from the source response. Needs a Checkybot server with source support.
+
 ## v0.2.2 - 2026-10-11
 
 checkybot:sync sends the declared checks as a full manifest, so Checkybot removes checks that are no longer declared. New --force-prune option confirms a sync that Checkybot refuses as a mass removal (more than 10 checks and more than 20% of one type).
