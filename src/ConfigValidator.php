@@ -127,6 +127,10 @@ class ConfigValidator
                 $errors[] = "Check '{$name}' has an invalid interval: {$interval}";
             }
         }
+
+        foreach ($registry->getApiChecks() as $check) {
+            $this->validateSource($check->toArray(), $check->getName(), $errors);
+        }
     }
 
     /**
@@ -170,7 +174,37 @@ class ConfigValidator
                 } elseif (! $this->isValidInterval($check['interval'])) {
                     $errors[] = "Check '{$name}' has an invalid interval: {$check['interval']}";
                 }
+
+                if ($type === 'api') {
+                    $this->validateSource($check, $name, $errors);
+                }
             }
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $check
+     * @param  array<int, string>  $errors
+     */
+    protected function validateSource(array $check, string $name, array &$errors): void
+    {
+        $sourceUrl = $check['source_url'] ?? null;
+        $sourcePath = $check['source_path'] ?? null;
+
+        if ($sourceUrl === null && $sourcePath === null) {
+            return;
+        }
+
+        if (! is_string($sourceUrl) || ! $this->isValidUrl($sourceUrl)) {
+            $errors[] = "Check '{$name}' has an invalid source URL";
+        }
+
+        if (! is_string($sourcePath) || trim($sourcePath) === '') {
+            $errors[] = "Check '{$name}' is missing a source path";
+        }
+
+        if (! str_contains((string) ($check['url'] ?? ''), '{source}')) {
+            $errors[] = "Check '{$name}' uses a source but its URL has no {source} placeholder";
         }
     }
 

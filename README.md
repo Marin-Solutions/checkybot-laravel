@@ -300,6 +300,21 @@ Checkybot::api('deprecated-contract')
     ->everyFiveMinutes();
 ```
 
+### Chained Requests (Source Value)
+
+Monitor a detail endpoint with an item that a fresh search returns, instead of a pinned id that can disappear upstream:
+
+```php
+Checkybot::api('job-detail')
+    ->source('https://example.com/api/jobs/search?query=developer', 'data.jobs.0.id')
+    ->url('https://example.com/api/jobs/job?id={source}')
+    ->headers(['X-API-KEY' => config('services.example.key')])
+    ->everyThirtyMinutes()
+    ->expect('data.job.id')->toEqual('{source}');
+```
+
+Checkybot first sends a GET request to the source URL with the same headers, then reads the value at the JSON path. It replaces every `{source}` in the check URL (URL-encoded) and in assertion expected values (raw). If the source request fails or the path is missing, the check fails with a `_source` assertion and the main URL is not called. Requires a Checkybot server with source support.
+
 ### Response Assertions (Pest-style)
 
 Chain assertions to validate JSON responses:
