@@ -6,6 +6,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\DB;
+use MarinSolutions\CheckybotLaravel\Tests\Support\SqliteWriteLockOnBegin;
 use MarinSolutions\CheckybotLaravel\Tests\TestCase;
 
 if (! in_array($argc, [3, 6, 7], true)) {
@@ -76,6 +77,7 @@ if ($argc >= 6) {
 }
 
 fwrite(STDOUT, "[maintenance-runtime] php artisan queue:work database\n");
+SqliteWriteLockOnBegin::register($app);
 $status = $app->make(Kernel::class)->call('queue:work', $options);
 if ($argc >= 6) {
     fwrite(STDOUT, '[maintenance-runtime] remaining='.DB::table('jobs')->where('queue', $options['--queue'])->count()."\n");
