@@ -18,12 +18,10 @@ CarbonImmutable::setTestNow(CarbonImmutable::parse($scanAt));
 
 /** @var Application $app */
 $app = require $root.'/scripts/harness/bootstrap/app.php';
-// SQLite has no row locks. Take the write lock when a transaction starts and
-// wait for it, so two racers queue up instead of failing with "database is
-// locked" when both try to upgrade a read transaction at the same time.
+// Wait for the other racer's write lock instead of failing at once, like the
+// other racer scripts do.
 $app->afterBootstrapping(LoadConfiguration::class, static function (Application $app): void {
     $app['config']->set('database.connections.sqlite.busy_timeout', 10000);
-    $app['config']->set('database.connections.sqlite.transaction_mode', 'IMMEDIATE');
 });
 touch($ready);
 $deadline = microtime(true) + 15;

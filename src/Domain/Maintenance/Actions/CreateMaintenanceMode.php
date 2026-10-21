@@ -77,8 +77,11 @@ final class CreateMaintenanceMode
 
             return $result;
         } catch (Throwable $exception) {
-            if (DB::connection()->getPdo()->inTransaction()) {
+            // PDO::inTransaction() ignores a raw BEGIN before PHP 8.4, so always roll back.
+            // SQLite may already have rolled back on its own; that error is not the cause.
+            try {
                 DB::statement('ROLLBACK');
+            } catch (Throwable) {
             }
             throw $exception;
         }
