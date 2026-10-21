@@ -695,7 +695,7 @@ it('normalizes canonical and legacy seven-type summaries including absent operat
     ));
 
     expect(Artisan::call('checkybot:sync'))->toBe(0);
-    $canonical = Artisan::output();
+    $canonical = str_replace("\r\n", "\n", Artisan::output());
     expect($canonical)->toContain("Uptime Checks:\n    Created: 1\n    Updated: 0\n    Deleted: 0")
         ->and($canonical)->toContain("Ssl Checks:\n    Created: 0\n    Updated: 2\n    Deleted: 0")
         ->and($canonical)->toContain("Api Checks:\n    Created: 0\n    Updated: 0\n    Deleted: 3")
@@ -703,7 +703,7 @@ it('normalizes canonical and legacy seven-type summaries including absent operat
         ->and($canonical)->toContain("Response Time Budget Checks:\n    Created: 0\n    Updated: 8\n    Deleted: 0");
 
     expect(Artisan::call('checkybot:sync'))->toBe(0);
-    $legacy = Artisan::output();
+    $legacy = str_replace("\r\n", "\n", Artisan::output());
     expect($legacy)->toContain("Uptime Checks:\n    Created: 11\n    Updated: 0\n    Deleted: 0")
         ->and($legacy)->toContain("Link Checks:\n    Created: 14\n    Updated: 0\n    Deleted: 0")
         ->and($legacy)->toContain("OpenGraph Checks:\n    Created: 0\n    Updated: 15\n    Deleted: 0")

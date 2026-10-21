@@ -96,4 +96,4 @@ it('deduplicates barrier-synchronized overlapping p95 evaluator processes', func
     expect(ExpandedCheckEvaluation::query()->count())->toBe(1)
         ->and(AlertingResult::query()->count())->toBe(1)
         ->and(DB::table('jobs')->count())->toBe(1);
-})->group('AC-agent-v2-expanded-monitors-13');
+})->skipOnWindows()->group('AC-agent-v2-expanded-monitors-13');

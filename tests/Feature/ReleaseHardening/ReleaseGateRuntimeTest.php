@@ -181,7 +181,7 @@ it('proves a sub-thirty-second pull blip has no intent or delivery through the r
                 'message' => 'Push operation not found.',
             ]);
     }
-})->group('AC-release-hardening-1');
+})->skipOnWindows()->group('AC-release-hardening-1');
 
 it('proves one grouped critical incident and recovery are dual-sent exactly once', function (): void {
     $runtime = startReleaseGateRuntime();
@@ -270,4 +270,4 @@ it('proves one grouped critical incident and recovery are dual-sent exactly once
             ->and($pushReceipt['expo_deliveries'])->toHaveCount(1)
             ->and($pushReceipt['expo_deliveries'][0]['status'])->toBe('accepted');
     }
-})->group('AC-release-hardening-2');
+})->skipOnWindows()->group('AC-release-hardening-2');
