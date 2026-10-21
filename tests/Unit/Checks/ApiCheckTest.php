@@ -119,3 +119,7 @@ it('rejects invalid status latency and retry builder values before serialization
         ->and(fn () => (new ApiCheck('latency'))->maxLatency(0))->toThrow(InvalidArgumentException::class)
         ->and(fn () => (new ApiCheck('retry'))->retries(11))->toThrow(InvalidArgumentException::class);
 });
+
+it('refuses an empty source path', function () {
+    (new ApiCheck('job'))->source('https://example.com/search', ' ');
+})->throws(InvalidArgumentException::class, 'Source path must not be empty.');
